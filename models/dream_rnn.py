@@ -20,22 +20,24 @@ class DREAMRNN(SequenceModel):
     """
     DREAM-RNN architecture for genomic sequence-to-function prediction.
     
+    Based on Prix Fixe implementation from de Boer Lab.
+    
     Architecture details:
-    - First layer: Two parallel 1D CNNs with different kernel sizes (9, 15)
-      to capture motifs of different lengths. Each has 256 channels.
-    - Core: Bidirectional LSTM (320 units each direction = 640 total)
-      followed by another CNN block for feature extraction.
-    - Final: 1D conv (256 filters) → global average pooling → linear layer.
+    - First layer block: Two parallel 1D CNNs with kernel sizes (9, 15)
+      to capture motifs of different lengths. Each has 160 channels (320 total after concat).
+    - Core block: Bidirectional LSTM (320 units each direction = 640 total)
+      followed by another dual CNN block (same as first layer).
+    - Final block: 1D conv (256 filters) → global average pooling → linear layer.
     
     The model uses dropout for regularization and supports sequences with
-    different numbers of input channels (4 for ACGT, 5 for ACGT+metadata).
+    different numbers of input channels (4 for ACGT, 5 for ACGT+singleton).
     
     Args:
-        input_channels: Number of input channels (4 for ACGT, 5 for ACGT+singleton)
-        sequence_length: Length of input sequences
+        input_channels: Number of input channels (4 for yeast ACGT, 5 for K562 ACGT+singleton)
+        sequence_length: Length of input sequences (80 for yeast, 230 for K562)
         output_dim: Output dimension (default: 1 for regression)
         hidden_dim: LSTM hidden dimension per direction (default: 320)
-        cnn_filters: Number of filters in CNN layers (default: 256)
+        cnn_filters: Number of filters PER CNN in dual blocks (default: 160, so 320 total after concat)
         dropout_cnn: Dropout rate after CNN layers (default: 0.2)
         dropout_lstm: Dropout rate after LSTM (default: 0.5)
     """
@@ -46,7 +48,7 @@ class DREAMRNN(SequenceModel):
         sequence_length: int,
         output_dim: int = 1,
         hidden_dim: int = 320,
-        cnn_filters: int = 256,
+        cnn_filters: int = 160,  # Changed from 256 to match Prix Fixe
         dropout_cnn: float = 0.2,
         dropout_lstm: float = 0.5
     ):
@@ -76,7 +78,7 @@ class DREAMRNN(SequenceModel):
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout_cnn)
         
-        # After concatenating, we have 2*cnn_filters channels
+        # After concatenating, we have 2*cnn_filters channels (320 total with default)
         concat_channels = 2 * cnn_filters
         
         # Core block: Bi-LSTM
@@ -91,29 +93,40 @@ class DREAMRNN(SequenceModel):
             dropout=0.0  # Only one layer, so no dropout between layers
         )
         
-        # CNN after LSTM
-        lstm_output_size = 2 * hidden_dim  # Bidirectional
-        self.conv2 = nn.Conv1d(
+        # CNN block after LSTM (dual CNNs like first layer block)
+        lstm_output_size = 2 * hidden_dim  # Bidirectional = 640
+        self.conv2_short = nn.Conv1d(
             in_channels=lstm_output_size,
             out_channels=cnn_filters,
-            kernel_size=3,
+            kernel_size=9,
             padding='same'
         )
+        
+        self.conv2_long = nn.Conv1d(
+            in_channels=lstm_output_size,
+            out_channels=cnn_filters,
+            kernel_size=15,
+            padding='same'
+        )
+        
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout_lstm)
         
+        # After concatenating second CNN block: 2*cnn_filters = 320
+        conv2_concat_channels = 2 * cnn_filters
+        
         # Final block: Conv1D → global average pooling → linear
         self.conv3 = nn.Conv1d(
-            in_channels=cnn_filters,
-            out_channels=cnn_filters,
-            kernel_size=3,
+            in_channels=conv2_concat_channels,
+            out_channels=256,  # Prix Fixe uses 256 in final conv
+            kernel_size=1,  # Point-wise convolution
             padding='same'
         )
         self.relu3 = nn.ReLU()
         
         # Global average pooling will be done manually
         # Linear layer to output
-        self.fc = nn.Linear(cnn_filters, output_dim)
+        self.fc = nn.Linear(256, output_dim)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -146,17 +159,21 @@ class DREAMRNN(SequenceModel):
         # Convert back to (batch, channels, seq_len) for CNN
         lstm_out = lstm_out.permute(0, 2, 1)  # (batch, 2*hidden_dim, seq_len)
         
-        # CNN after LSTM
-        conv2_out = self.conv2(lstm_out)  # (batch, cnn_filters, seq_len)
+        # Dual CNN block after LSTM (same structure as first layer)
+        conv2_short_out = self.conv2_short(lstm_out)  # (batch, cnn_filters, seq_len)
+        conv2_long_out = self.conv2_long(lstm_out)    # (batch, cnn_filters, seq_len)
+        
+        # Concatenate along channel dimension
+        conv2_out = torch.cat([conv2_short_out, conv2_long_out], dim=1)  # (batch, 2*cnn_filters, seq_len)
         conv2_out = self.relu2(conv2_out)
         conv2_out = self.dropout2(conv2_out)
         
-        # Final block: Conv1D
-        conv3_out = self.conv3(conv2_out)  # (batch, cnn_filters, seq_len)
+        # Final block: Point-wise Conv1D
+        conv3_out = self.conv3(conv2_out)  # (batch, 256, seq_len)
         conv3_out = self.relu3(conv3_out)
         
         # Global average pooling along sequence dimension
-        pooled = torch.mean(conv3_out, dim=2)  # (batch, cnn_filters)
+        pooled = torch.mean(conv3_out, dim=2)  # (batch, 256)
         
         # Linear layer to output
         output = self.fc(pooled)  # (batch, output_dim)

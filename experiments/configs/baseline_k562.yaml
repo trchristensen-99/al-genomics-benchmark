@@ -1,15 +1,19 @@
-# Baseline Subset Experiment Configuration
+# Baseline Subset Experiment Configuration for K562 Human Dataset
 # Establishes baseline data efficiency curves without active learning
 
 experiment:
-  name: "baseline_subsets"
-  description: "Train DREAM-RNN on random subsets of different sizes"
+  name: "baseline_subsets_k562"
+  description: "Train DREAM-RNN on random subsets of K562 data"
   random_seed: 42
 
 # Dataset configuration
 data:
-  dataset_name: "k562"  # or "yeast"
+  dataset_name: "k562"
   data_path: "./data/k562"
+  
+  # K562-specific settings
+  sequence_length: 230  # Extended to 230bp with flanking regions
+  input_channels: 5     # ACGT + is_singleton flag
   
   # Subset fractions to test
   subset_fractions: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
@@ -19,11 +23,11 @@ data:
   num_workers: 4
   pin_memory: true
 
-# Model configuration
+# Model configuration (Prix Fixe defaults for K562)
 model:
   architecture: "dream_rnn"
   
-  # Architecture hyperparameters (Prix Fixe defaults)
+  # Architecture hyperparameters
   hidden_dim: 320
   cnn_filters: 160  # Per CNN layer (320 total after concat)
   dropout_cnn: 0.2
@@ -35,8 +39,8 @@ training:
   
   # Optimizer
   optimizer: "adamw"
-  lr: 0.005
-  lr_lstm: 0.001  # Lower LR for LSTM (attention-like components are sensitive)
+  lr: 0.005         # For CNN layers
+  lr_lstm: 0.001    # Lower LR for LSTM (attention-like components)
   weight_decay: 0.01
   
   # Scheduler
@@ -47,7 +51,7 @@ training:
   criterion: "mse"
   
   # Evaluation
-  use_reverse_complement: true
+  use_reverse_complement: true  # Average predictions from both orientations
   metric_for_best: "pearson_r"  # Save best model based on this metric
   early_stopping_patience: null  # null = no early stopping
 
@@ -61,13 +65,11 @@ output:
   save_best_model: true
   save_final_model: true
   save_training_history: true
-  save_predictions: false  # Don't save predictions for baseline (too large)
+  save_predictions: false
 
 # Hardware configuration
 hardware:
-  device: "cuda"  # "cuda" or "cpu"
-  device_id: 0  # GPU ID if using CUDA
-  
-  # Reproducibility
+  device: "cuda"
+  device_id: 0
   deterministic: true
   benchmark: false
