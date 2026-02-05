@@ -153,19 +153,23 @@ class K562Dataset(SequenceDataset):
         # For now, just pad with Ns if needed
         processed = []
         for seq in sequences:
-            if len(seq) < self.SEQUENCE_LENGTH:
+            curr_len = len(seq)
+            if curr_len < self.SEQUENCE_LENGTH:
                 # Center the sequence and pad with flanking regions
-                pad_needed = self.SEQUENCE_LENGTH - len(seq)
+                pad_needed = self.SEQUENCE_LENGTH - curr_len
                 left_pad = pad_needed // 2
                 right_pad = pad_needed - left_pad
-                padded = self.FLANKING_SEQUENCE[:left_pad] + seq + self.FLANKING_SEQUENCE[:right_pad]
+                padded = 'N' * left_pad + seq + 'N' * right_pad
                 processed.append(padded)
-            elif len(seq) > self.SEQUENCE_LENGTH:
+            elif curr_len > self.SEQUENCE_LENGTH:
                 # Truncate to target length (center)
-                start = (len(seq) - self.SEQUENCE_LENGTH) // 2
+                start = (curr_len - self.SEQUENCE_LENGTH) // 2
                 processed.append(seq[start:start + self.SEQUENCE_LENGTH])
             else:
                 processed.append(seq)
+        
+        # Ensure all sequences are exactly SEQUENCE_LENGTH
+        processed = [seq if len(seq) == self.SEQUENCE_LENGTH else seq[:self.SEQUENCE_LENGTH] for seq in processed]
         
         return np.array(processed)
     
