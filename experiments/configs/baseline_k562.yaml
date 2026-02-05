@@ -3,7 +3,7 @@
 experiment:
   name: "baseline_k562"
   description: "Baseline data efficiency experiment for K562 human MPRA dataset"
-  seed: 42
+  random_seed: 42
 
 data:
   dataset_name: "k562"
@@ -14,7 +14,7 @@ data:
   input_channels: 4     # ACGT only (is_singleton removed)
   
   # Subset fractions to test
-  subset_fractions: [0.05, 0.1, 0.25, 0.5] # Updated fractions for manual run
+  subset_fractions: [0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
   
   # Data loading
   batch_size: 1024
@@ -23,23 +23,30 @@ data:
 
 model:
   type: "dream_rnn"
-  dropout: 0.2
+  hidden_dim: 320
+  cnn_filters: 160
+  dropout_cnn: 0.2
+  dropout_lstm: 0.5
 
 training:
   num_epochs: 80
-  early_stopping_patience: 10
-  metric_for_best: "pearson_r"  # Can be 'pearson_r', 'spearman_r', or 'loss'
   
-  # Optimizer settings
-  lr_cnn: 0.005
-  lr_lstm: 0.001
+  # Optimizer
+  lr: 0.005         # For CNN layers
+  lr_lstm: 0.001    # Lower LR for LSTM
   weight_decay: 0.01
-  pct_start: 0.3  # Fraction of cycle spent increasing LR
+  
+  # Scheduler
+  pct_start: 0.3  # 30% of training spent increasing LR
+  
+  # Evaluation
+  use_reverse_complement: true
+  metric_for_best: "pearson_r"
+  early_stopping_patience: null
   
   # Performance optimizations
-  use_reverse_complement: true  # Average predictions with reverse complement
-  use_amp: true                 # Use automatic mixed precision (FP16) for ~2x speedup
-  use_compile: false            # Disabled due to compatibility issues
+  use_amp: true      # Use automatic mixed precision (FP16) for ~2x speedup
+  use_compile: false # Disabled due to compatibility issues
 
 hardware:
   device: "cuda"
