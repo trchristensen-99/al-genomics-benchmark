@@ -45,7 +45,7 @@ hardware:
   device: "cuda"
   device_id: 0
 
-logging:
-  log_dir: "./logs"
+output:
   checkpoint_dir: "./checkpoints"
   results_dir: "./results"
+  log_dir: "./logs"
