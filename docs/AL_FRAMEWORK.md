@@ -48,10 +48,13 @@ This ensures:
 ## Architecture
 
 ```
-al_genomics/
+acquisition/
 ├── __init__.py           # Package exports
-├── pool.py               # DataPool class for managing labeled/unlabeled splits
-└── acquisition.py        # Acquisition strategy implementations
+└── strategies.py         # Acquisition strategy implementations
+
+simulation/
+├── __init__.py           # Package exports
+└── pool.py               # DataPool class for managing labeled/unlabeled splits
 
 experiments/
 ├── 01_baseline_subsets.py    # Baseline: random subsets (no AL)
@@ -118,14 +121,14 @@ experiments/
 
 ## Components
 
-### 1. DataPool (`al_genomics/pool.py`)
+### 1. DataPool (`simulation/pool.py`)
 
 Manages the partition between labeled and unlabeled data.
 
 **Key methods**:
 
 ```python
-from al_genomics import DataPool
+from simulation import DataPool
 
 # Initialize with dataset and optional initial labeled samples
 pool = DataPool(
@@ -161,7 +164,7 @@ stats = pool.get_statistics()
 - Tracks acquisition history per round
 - Provides clean Subset interfaces for PyTorch DataLoader
 
-### 2. Acquisition Strategies (`al_genomics/acquisition.py`)
+### 2. Acquisition Strategies (`acquisition/strategies.py`)
 
 All strategies inherit from `AcquisitionStrategy` ABC.
 
@@ -170,7 +173,7 @@ All strategies inherit from `AcquisitionStrategy` ABC.
 Random sampling without using model information.
 
 ```python
-from al_genomics import RandomAcquisition
+from acquisition import RandomAcquisition
 
 strategy = RandomAcquisition(random_seed=42)
 selected_indices = strategy.select_batch(
@@ -188,7 +191,7 @@ selected_indices = strategy.select_batch(
 Selects samples where the model is most uncertain.
 
 ```python
-from al_genomics import UncertaintyAcquisition
+from acquisition import UncertaintyAcquisition
 
 strategy = UncertaintyAcquisition(
     random_seed=42,
@@ -215,7 +218,7 @@ selected_indices = strategy.select_batch(
 Selects diverse samples for good sequence space coverage.
 
 ```python
-from al_genomics import DiversityAcquisition
+from acquisition import DiversityAcquisition
 
 strategy = DiversityAcquisition(
     random_seed=42,
@@ -243,7 +246,7 @@ selected_indices = strategy.select_batch(
 Combines uncertainty and diversity with weighted scoring.
 
 ```python
-from al_genomics import HybridAcquisition
+from acquisition import HybridAcquisition
 
 strategy = HybridAcquisition(
     random_seed=42,

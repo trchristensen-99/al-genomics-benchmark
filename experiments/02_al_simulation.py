@@ -33,8 +33,8 @@ from models.training import (
     create_optimizer_and_scheduler,
     evaluate
 )
-from al_genomics import (
-    DataPool,
+from simulation import DataPool
+from acquisition import (
     RandomAcquisition,
     UncertaintyAcquisition,
     DiversityAcquisition,
