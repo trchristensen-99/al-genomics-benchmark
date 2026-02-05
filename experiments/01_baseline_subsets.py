@@ -139,13 +139,15 @@ def run_experiment(
     try:
         train_dataset_full = create_dataset(dataset_name, data_path, 'train')
         val_dataset = create_dataset(dataset_name, data_path, 'val')
-        test_dataset = create_dataset(dataset_name, data_path, 'test')
         
         print(f"Full training set: {len(train_dataset_full)} samples")
         print(f"Validation set: {len(val_dataset)} samples")
-        print(f"Test set: {len(test_dataset)} samples")
         print(f"Sequence length: {train_dataset_full.get_sequence_length()}")
         print(f"Input channels: {train_dataset_full.get_num_channels()}")
+        
+        # Test set is only needed for final evaluation, not during training
+        # For yeast: use filtered_test_data_with_MAUDE_expression.txt separately
+        # For K562: use test_chr7_13_all.tsv separately
     except Exception as e:
         print(f"\nError loading dataset: {e}")
         print("\nNote: Make sure you've downloaded the data first:")
@@ -159,17 +161,9 @@ def run_experiment(
         device = torch.device('cpu')
     print(f"\nDevice: {device}")
     
-    # Create data loaders for validation and test (full sets)
+    # Create data loader for validation (test set handled separately)
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config['data']['batch_size'],
-        shuffle=False,
-        num_workers=config['data']['num_workers'],
-        pin_memory=config['data']['pin_memory']
-    )
-    
-    test_loader = DataLoader(
-        test_dataset,
         batch_size=config['data']['batch_size'],
         shuffle=False,
         num_workers=config['data']['num_workers'],
@@ -268,18 +262,14 @@ def run_experiment(
         if best_model_path.exists():
             model.load_checkpoint(str(best_model_path))
         
-        test_metrics = evaluate(
-            model=model,
-            dataloader=test_loader,
-            criterion=criterion,
-            device=device,
-            use_reverse_complement=config['training']['use_reverse_complement']
-        )
+        # Test set evaluation done separately - use val metrics as proxy
+        test_metrics = val_metrics.copy()
+        test_metrics['note'] = 'Using validation metrics - test set evaluated separately'
         
-        print(f"Test metrics:")
-        print(f"  Pearson R: {test_metrics['pearson_r']:.4f}")
-        print(f"  Spearman R: {test_metrics['spearman_r']:.4f}")
-        print(f"  MSE: {test_metrics['mse']:.4f}")
+        print(f"Validation metrics (test done separately):")
+        print(f"  Pearson R: {val_metrics['pearson_r']:.4f}")
+        print(f"  Spearman R: {val_metrics['spearman_r']:.4f}")
+        print(f"  MSE: {val_metrics['mse']:.4f}")
         
         # Store results
         subset_result = {

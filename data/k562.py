@@ -85,9 +85,35 @@ class K562Dataset(SequenceDataset):
         
         # Load data (tab-separated with header)
         try:
-            df = pd.read_csv(file_path, sep='\t')
+            df = pd.read_csv(file_path, sep='\t', dtype={'OL': str})
         except Exception as e:
             raise RuntimeError(f"Error loading K562 data from {file_path}: {e}")
+        
+        # Filter to reference alleles only (matching benchmark paper: 367K sequences)
+        # Parse ID format: chr:pos:ref:alt:allele_type:wc
+        id_parts = df['IDs'].str.split(':', expand=True)
+        allele_type = id_parts[4]  # R=reference, A=alternate, empty=CRE/no variant
+        ref_col = id_parts[2]
+        alt_col = id_parts[3]
+        
+        # Keep reference alleles (R) and non-variant sequences (NA:NA)
+        is_reference = allele_type == 'R'
+        is_non_variant = (ref_col == 'NA') & (alt_col == 'NA')
+        n_before = len(df)
+        df = df[is_reference | is_non_variant].copy()
+        n_after = len(df)
+        
+        print(f"  Filtered to {n_after:,} reference alleles (excluded {n_before - n_after:,} alternate alleles)")
+        
+        # Filter by sequence length (paper uses sequences >= 198bp)
+        # This matches the paper's 367,364 sequences (our data: 367,793 with >= 198bp filter)
+        df['seq_len'] = df['sequence'].str.len()
+        n_before_len = len(df)
+        df = df[df['seq_len'] >= 198].copy()
+        n_after_len = len(df)
+        
+        print(f"  Length filter (>= 198bp): {n_after_len:,} sequences (excluded {n_before_len - n_after_len:,} shorter sequences)")
+        df = df.drop(columns=['seq_len'])
         
         # Expected columns from the K562 lentiMPRA dataset:
         # IDs, chr, data_project, OL, class, K562_log2FC, HepG2_log2FC, SKNSH_log2FC, 
@@ -99,13 +125,23 @@ class K562Dataset(SequenceDataset):
         if 'K562_log2FC' not in df.columns:
             raise ValueError(f"Data file must contain 'K562_log2FC' column. Found: {df.columns.tolist()}")
         
+        # Apply chromosome-based splits (as per paper)
+        # Train: all chromosomes except test (7, 13) - includes validation chromosomes
+        # Val: chromosomes 19, 21, X (subset of training pool for early stopping)
+        # Test: chromosomes 7, 13 (held-out for final evaluation)
+        if self.split == 'train':
+            df = df[~df['chr'].isin(['7', '13'])].copy()
+            print(f"  Train split (excluding test chr 7, 13): {len(df):,} sequences")
+        elif self.split == 'val':
+            df = df[df['chr'].isin(['19', '21', 'X'])].copy()
+            print(f"  Validation split (chr 19, 21, X): {len(df):,} sequences")
+        elif self.split == 'test':
+            df = df[df['chr'].isin(['7', '13'])].copy()
+            print(f"  Test split (chr 7, 13): {len(df):,} sequences")
+        
         # Use K562_log2FC as the expression value (K562 cell line specific data)
         self.sequences = df['sequence'].values
         self.labels = df['K562_log2FC'].values.astype(np.float32)
-        
-        # For now, we'll use the entire dataset for all splits
-        # In a real scenario, you'd want to create proper train/val/test splits
-        # TODO: Implement proper data splitting strategy
         
         # Process sequences (add flanking if needed)
         if self.use_flanking:
