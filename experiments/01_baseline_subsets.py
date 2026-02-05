@@ -71,17 +71,29 @@ def create_subset_indices(dataset_size: int, fraction: float, seed: int) -> np.n
     return indices
 
 
-def run_experiment(config: dict, dataset_override: str = None):
+def run_experiment(
+    config: dict, 
+    dataset_override: str = None,
+    seed_override: int = None,
+    fractions_override: list = None
+):
     """
     Run the baseline subset experiment.
     
     Args:
         config: Configuration dictionary
         dataset_override: Optional dataset name to override config
+        seed_override: Optional random seed to override config
+        fractions_override: Optional list of fractions to override config
     """
     print("="*80)
     print("BASELINE SUBSET EXPERIMENT")
     print("="*80)
+    
+    # Override seed if specified
+    if seed_override is not None:
+        config['experiment']['random_seed'] = seed_override
+        print(f"Seed override: {seed_override}")
     
     # Set random seed
     seed = config['experiment']['random_seed']
@@ -91,6 +103,11 @@ def run_experiment(config: dict, dataset_override: str = None):
     if dataset_override is not None:
         config['data']['dataset_name'] = dataset_override
         print(f"Dataset override: {dataset_override}")
+    
+    # Override fractions if specified
+    if fractions_override is not None:
+        config['data']['subset_fractions'] = fractions_override
+        print(f"Fractions override: {fractions_override}")
     
     dataset_name = config['data']['dataset_name']
     print(f"Dataset: {dataset_name}")
@@ -317,15 +334,43 @@ def main():
         choices=['k562', 'yeast'],
         help='Override dataset specified in config'
     )
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=None,
+        help='Override random seed specified in config'
+    )
+    parser.add_argument(
+        '--fractions',
+        type=float,
+        nargs='+',
+        default=None,
+        help='Override subset fractions (e.g., --fractions 0.05 0.1 0.25)'
+    )
+    parser.add_argument(
+        '--gpu',
+        type=int,
+        default=None,
+        help='GPU device ID to use'
+    )
     
     args = parser.parse_args()
     
     # Load config
     config = load_config(args.config)
     
+    # Override GPU if specified
+    if args.gpu is not None:
+        config['hardware']['device_id'] = args.gpu
+    
     # Run experiment
     try:
-        run_experiment(config, dataset_override=args.dataset)
+        run_experiment(
+            config, 
+            dataset_override=args.dataset,
+            seed_override=args.seed,
+            fractions_override=args.fractions
+        )
     except KeyboardInterrupt:
         print("\n\nExperiment interrupted by user")
         sys.exit(1)
