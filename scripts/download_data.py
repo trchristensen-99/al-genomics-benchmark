@@ -26,32 +26,37 @@ DATASETS = {
             {
                 'name': 'DATA-Table_S2__MPRA_dataset.txt',
                 'url': 'https://zenodo.org/records/10698014/files/DATA-Table_S2__MPRA_dataset.txt',
-                'size': '280.2 MB'
+                'size': '280.2 MB',
+                'expected_sequences': '~370K'
             },
         ],
-        'description': 'K562 human MPRA dataset from Gosai et al., Nature 2023'
+        'description': 'K562 human MPRA dataset from Gosai et al., Nature 2023 (lentiMPRA)',
+        'total_sequences': '~370K'
     },
     'yeast': {
         'zenodo_id': '10633252',
         'files': [
-            # Will need to determine exact file names from Zenodo
             {
                 'name': 'train.txt',
                 'url': 'https://zenodo.org/records/10633252/files/train.txt',
-                'size': 'TBD'
+                'size': '~400 MB',
+                'expected_sequences': '~5.4M'
             },
             {
                 'name': 'val.txt',
                 'url': 'https://zenodo.org/records/10633252/files/val.txt',
-                'size': 'TBD'
+                'size': '~70 MB',
+                'expected_sequences': '~0.9M'
             },
             {
                 'name': 'test.txt',
                 'url': 'https://zenodo.org/records/10633252/files/test.txt',
-                'size': 'TBD'
+                'size': '~30 MB',
+                'expected_sequences': '~0.4M'
             },
         ],
-        'description': 'Yeast promoter MPRA dataset from de Boer et al., Nature Biotech 2024'
+        'description': 'Yeast promoter MPRA dataset from de Boer et al., Nature Biotech 2024 (Random Promoter DREAM Challenge)',
+        'total_sequences': '~6.7M'
     }
 }
 
@@ -137,6 +142,7 @@ def download_dataset(dataset_name: str, data_root: Path) -> None:
     print(f"\n{'='*60}")
     print(f"Dataset: {dataset_name}")
     print(f"Description: {dataset_info['description']}")
+    print(f"Expected sequences: {dataset_info.get('total_sequences', 'Unknown')}")
     print(f"Zenodo: https://zenodo.org/records/{dataset_info['zenodo_id']}")
     print(f"{'='*60}\n")
     
@@ -145,12 +151,16 @@ def download_dataset(dataset_name: str, data_root: Path) -> None:
     dataset_dir.mkdir(parents=True, exist_ok=True)
     
     # Download each file
+    downloaded_files = []
     for file_info in dataset_info['files']:
         output_path = dataset_dir / file_info['name']
         desc = f"{file_info['name']} ({file_info['size']})"
+        if 'expected_sequences' in file_info:
+            desc += f" - {file_info['expected_sequences']} sequences"
         
         try:
             download_file(file_info['url'], output_path, desc)
+            downloaded_files.append(output_path)
             
             # Extract if archive
             if output_path.suffix in ['.zip', '.tar', '.gz', '.tgz']:
@@ -162,7 +172,22 @@ def download_dataset(dataset_name: str, data_root: Path) -> None:
             print(f"Visit: https://zenodo.org/records/{dataset_info['zenodo_id']}")
             continue
     
+    # Validate downloads
+    print(f"\n{'='*60}")
+    print(f"Download Summary for {dataset_name}:")
+    print(f"{'='*60}")
+    for file_path in downloaded_files:
+        if file_path.exists():
+            size_mb = file_path.stat().st_size / (1024 * 1024)
+            print(f"✓ {file_path.name}: {size_mb:.1f} MB")
+        else:
+            print(f"✗ {file_path.name}: Not found")
+    
     print(f"\n✓ {dataset_name} dataset ready at: {dataset_dir}")
+    print(f"\nNext steps:")
+    print(f"  1. Verify file sizes match expected values")
+    print(f"  2. Run: python -c \"from data.{dataset_name} import {dataset_name.capitalize()}Dataset; d = {dataset_name.capitalize()}Dataset('data/{dataset_name}', 'train'); print(f'Loaded {{len(d)}} sequences')\"")
+    print(f"  3. Expected: {dataset_info.get('total_sequences', 'See paper')}")
 
 
 def main():
