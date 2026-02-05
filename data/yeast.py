@@ -36,7 +36,7 @@ class YeastDataset(SequenceDataset):
         - activity: Promoter activity measurement
     """
     
-    SEQUENCE_LENGTH = 80
+    SEQUENCE_LENGTH = 110  # Most common yeast promoter length in the dataset
     NUM_CHANNELS = 4  # ACGT only (no singleton flag for yeast)
     
     def load_data(self) -> None:
@@ -60,26 +60,18 @@ class YeastDataset(SequenceDataset):
         
         print(f"Loading Yeast {self.split} data from {file_path}")
         
-        # Load data - try different delimiters
-        df = None
-        for delimiter in ['\t', ',', ' ', None]:
-            try:
-                df = pd.read_csv(file_path, delimiter=delimiter)
-                if len(df.columns) >= 2:  # Need at least sequence and activity
-                    break
-            except Exception:
-                continue
+        # Load data - tab-separated, no header, two columns: sequence and expression
+        try:
+            df = pd.read_csv(file_path, sep='\t', header=None, names=['sequence', 'expression'])
+        except Exception as e:
+            raise RuntimeError(f"Error loading yeast data from {file_path}: {e}")
         
-        if df is None or len(df.columns) < 2:
-            raise RuntimeError(f"Could not parse data from {file_path}")
+        if len(df.columns) < 2:
+            raise RuntimeError(f"Expected at least 2 columns (sequence, expression), found {len(df.columns)}")
         
         # Extract sequences and labels
-        # TODO: Update column names to match actual dataset once downloaded
-        sequence_col = self._find_column(df, ['sequence', 'seq', 'Sequence', 'SEQ', 'promoter'])
-        activity_col = self._find_column(df, ['activity', 'expression', 'Activity', 'Expression', 'label', 'score'])
-        
-        self.sequences = df[sequence_col].values
-        self.labels = df[activity_col].values.astype(np.float32)
+        self.sequences = df['sequence'].values
+        self.labels = df['expression'].values.astype(np.float32)
         
         # Validate and standardize sequence lengths
         seq_lengths = [len(seq) for seq in self.sequences]
@@ -122,18 +114,31 @@ class YeastDataset(SequenceDataset):
         labels: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Standardize sequence lengths by filtering to target length.
+        Standardize sequence lengths by padding or truncating to target length.
         
-        For now, just keep sequences that match target length.
-        Could be extended to pad/truncate if needed.
+        Sequences shorter than target are padded with 'N' (center-aligned).
+        Sequences longer than target are truncated (center-aligned).
         """
-        mask = np.array([len(seq) == self.sequence_length for seq in sequences])
-        filtered_seqs = sequences[mask]
-        filtered_labels = labels[mask]
+        standardized = []
+        for seq in sequences:
+            if len(seq) == self.sequence_length:
+                standardized.append(seq)
+            elif len(seq) < self.sequence_length:
+                # Pad with N (center-aligned)
+                pad_needed = self.sequence_length - len(seq)
+                left_pad = pad_needed // 2
+                right_pad = pad_needed - left_pad
+                padded = 'N' * left_pad + seq + 'N' * right_pad
+                standardized.append(padded)
+            else:
+                # Truncate (center-aligned)
+                start = (len(seq) - self.sequence_length) // 2
+                truncated = seq[start:start + self.sequence_length]
+                standardized.append(truncated)
         
-        print(f"Filtered {len(sequences)} -> {len(filtered_seqs)} sequences matching length {self.sequence_length}")
+        print(f"Standardized {len(sequences)} sequences to length {self.sequence_length}")
         
-        return filtered_seqs, filtered_labels
+        return np.array(standardized), labels
     
     def encode_sequence(self, sequence: str, metadata: Optional[Dict] = None) -> np.ndarray:
         """

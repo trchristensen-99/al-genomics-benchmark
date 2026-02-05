@@ -12,7 +12,7 @@ data:
   data_path: "./data/yeast"
   
   # Yeast-specific settings
-  sequence_length: 80   # Yeast promoters are ~80bp
+  sequence_length: 110   # Most common promoter length in dataset (padded/truncated)
   input_channels: 4     # ACGT only (no singleton flag)
   
   # Subset fractions to test

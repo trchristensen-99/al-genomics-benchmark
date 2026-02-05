@@ -38,9 +38,10 @@ class K562Dataset(SequenceDataset):
         - [optional] chrom, start, end: Genomic coordinates
     """
     
-    SEQUENCE_LENGTH = 230
+    SEQUENCE_LENGTH = 230  # Target length after adding flanking regions
+    NATIVE_LENGTH = 200  # Most common native sequence length in the dataset
     NUM_CHANNELS = 5  # ACGT + is_singleton flag
-    FLANKING_SEQUENCE = "N" * 10  # Placeholder for constant plasmid flanking regions
+    FLANKING_SEQUENCE = "N" * 15  # Placeholder for constant plasmid flanking regions (15bp each side)
     
     def __init__(
         self,
@@ -67,46 +68,44 @@ class K562Dataset(SequenceDataset):
         """
         Load K562 MPRA data from files.
         
-        Tries multiple file formats: .txt, .csv, .tsv
+        The K562 dataset comes as a single file with all data.
         """
         data_dir = Path(self.data_path)
         
-        # Try different file extensions
-        for ext in ['.txt', '.csv', '.tsv']:
-            file_path = data_dir / f"{self.split}{ext}"
-            if file_path.exists():
-                break
-        else:
+        # The actual filename from the Zenodo download
+        file_path = data_dir / 'DATA-Table_S2__MPRA_dataset.txt'
+        
+        if not file_path.exists():
             raise FileNotFoundError(
-                f"Could not find {self.split} data file in {data_dir}. "
-                f"Expected one of: {self.split}.txt, {self.split}.csv, {self.split}.tsv"
+                f"Could not find K562 data file at {file_path}. "
+                f"Please run: python scripts/download_data.py --dataset k562"
             )
         
         print(f"Loading K562 {self.split} data from {file_path}")
         
-        # Determine delimiter
-        if ext == '.csv':
-            delimiter = ','
-        elif ext == '.tsv':
-            delimiter = '\t'
-        else:
-            delimiter = None  # Let pandas infer
-        
-        # Load data
-        # TODO: Adjust column names based on actual data format once downloaded
+        # Load data (tab-separated with header)
         try:
-            df = pd.read_csv(file_path, delimiter=delimiter)
+            df = pd.read_csv(file_path, sep='\t')
         except Exception as e:
             raise RuntimeError(f"Error loading K562 data from {file_path}: {e}")
         
-        # Extract sequences and labels
-        # TODO: Update column names to match actual dataset
-        sequence_col = self._find_column(df, ['sequence', 'seq', 'Sequence', 'SEQ'])
-        activity_col = self._find_column(df, ['activity', 'expression', 'Activity', 'Expression', 'label'])
-        singleton_col = self._find_column(df, ['is_singleton', 'singleton', 'Singleton'], required=False)
+        # Expected columns from the K562 lentiMPRA dataset:
+        # IDs, chr, data_project, OL, class, K562_log2FC, HepG2_log2FC, SKNSH_log2FC, 
+        # K562_lfcSE, HepG2_lfcSE, SKNSH_lfcSE, sequence
         
-        self.sequences = df[sequence_col].values
-        self.labels = df[activity_col].values.astype(np.float32)
+        if 'sequence' not in df.columns:
+            raise ValueError(f"Data file must contain 'sequence' column. Found: {df.columns.tolist()}")
+        
+        if 'K562_log2FC' not in df.columns:
+            raise ValueError(f"Data file must contain 'K562_log2FC' column. Found: {df.columns.tolist()}")
+        
+        # Use K562_log2FC as the expression value (K562 cell line specific data)
+        self.sequences = df['sequence'].values
+        self.labels = df['K562_log2FC'].values.astype(np.float32)
+        
+        # For now, we'll use the entire dataset for all splits
+        # In a real scenario, you'd want to create proper train/val/test splits
+        # TODO: Implement proper data splitting strategy
         
         # Process sequences (add flanking if needed)
         if self.use_flanking:
@@ -114,11 +113,15 @@ class K562Dataset(SequenceDataset):
         
         # Store metadata
         self.metadata = {}
-        if singleton_col is not None:
-            self.metadata['is_singleton'] = df[singleton_col].values.astype(bool)
-        else:
-            # Default: assume all are non-singletons
-            self.metadata['is_singleton'] = np.zeros(len(self.sequences), dtype=bool)
+        # The K562 dataset doesn't have explicit singleton flags in this format
+        # Default: assume all are non-singletons
+        self.metadata['is_singleton'] = np.zeros(len(self.sequences), dtype=bool)
+        
+        # Store additional metadata if available
+        metadata_cols = ['IDs', 'chr', 'data_project', 'OL', 'class', 'K562_lfcSE']
+        for col in metadata_cols:
+            if col in df.columns:
+                self.metadata[col] = df[col].values
         
         # Store sequence length
         self.sequence_length = self.SEQUENCE_LENGTH
