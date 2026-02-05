@@ -1,0 +1,82 @@
+# Active Learning Simulation Configuration
+# Simulates iterative AL loops with various acquisition strategies
+
+experiment:
+  name: "al_simulation"
+  description: "Simulate active learning with different acquisition strategies"
+  random_seed: 42
+
+# Dataset configuration
+data:
+  dataset_name: "yeast"  # or "k562"
+  data_path: "./data/yeast"
+  
+  # Data loading
+  batch_size: 1024
+  num_workers: 4
+  pin_memory: true
+
+# Active learning configuration
+active_learning:
+  strategy: "random"  # Options: random, uncertainty, diversity, hybrid
+  
+  # AL loop settings
+  initial_samples: 1000      # Initial random labeled set
+  batch_size: 500            # Samples to acquire per round
+  num_rounds: 10             # Number of AL rounds (not including initial)
+  
+  # Strategy-specific parameters
+  mc_dropout_samples: 10     # For uncertainty sampling
+  uncertainty_weight: 0.5    # For hybrid strategy
+  diversity_weight: 0.5      # For hybrid strategy
+
+# Model configuration (Prix Fixe defaults)
+model:
+  architecture: "dream_rnn"
+  
+  # Architecture hyperparameters
+  hidden_dim: 320
+  cnn_filters: 160  # Per CNN layer (320 total after concat)
+  dropout_cnn: 0.2
+  dropout_lstm: 0.5
+
+# Training configuration
+training:
+  num_epochs: 80
+  
+  # Optimizer
+  optimizer: "adamw"
+  lr: 0.005         # For CNN layers
+  lr_lstm: 0.001    # Lower LR for LSTM
+  weight_decay: 0.01
+  
+  # Scheduler
+  scheduler: "onecycle"
+  pct_start: 0.3  # 30% of training spent increasing LR
+  
+  # Loss function
+  criterion: "mse"
+  
+  # Evaluation
+  use_reverse_complement: true
+  metric_for_best: "pearson_r"
+  early_stopping_patience: null  # null = no early stopping
+
+# Output configuration
+output:
+  checkpoint_dir: "./checkpoints"
+  results_dir: "./results"
+  log_dir: "./logs"
+  
+  # What to save
+  save_best_model: true
+  save_final_model: true
+  save_training_history: true
+  save_predictions: false
+
+# Hardware configuration
+hardware:
+  device: "cuda"
+  device_id: 0
+  deterministic: true
+  benchmark: false
