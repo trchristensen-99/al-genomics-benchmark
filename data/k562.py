@@ -209,29 +209,23 @@ class K562Dataset(SequenceDataset):
     
     def encode_sequence(self, sequence: str, metadata: Optional[Dict] = None) -> np.ndarray:
         """
-        Encode a K562 sequence with one-hot encoding + singleton channel.
+        Encode a K562 sequence with one-hot encoding.
         
         Args:
             sequence: DNA sequence string (230bp)
-            metadata: Dictionary with 'is_singleton' flag
+            metadata: Optional metadata (not used)
             
         Returns:
-            Encoded sequence of shape (5, 230)
-            - First 4 channels: one-hot encoded ACGT
-            - 5th channel: is_singleton flag (1.0 or 0.0)
+            Encoded sequence of shape (4, 230)
+            - 4 channels: one-hot encoded ACGT
         """
-        is_singleton = False
-        if metadata is not None and 'is_singleton' in metadata:
-            is_singleton = metadata['is_singleton']
-        
         encoded = one_hot_encode(
             sequence,
-            add_singleton_channel=True,
-            is_singleton=is_singleton
+            add_singleton_channel=False
         )
         
         return encoded
     
     def get_num_channels(self) -> int:
-        """Return number of input channels (5 for K562: ACGT + singleton flag)."""
+        """Return number of input channels (4 for K562: ACGT only)."""
         return self.NUM_CHANNELS
