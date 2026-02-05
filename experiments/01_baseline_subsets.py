@@ -237,7 +237,7 @@ def run_experiment(
         # Train model
         start_time = time.time()
         
-        history = train_model(
+        history = train_model_optimized(
             model=model,
             train_loader=train_loader,
             val_loader=val_loader,
@@ -249,7 +249,9 @@ def run_experiment(
             checkpoint_dir=subset_checkpoint_dir,
             use_reverse_complement=config['training']['use_reverse_complement'],
             early_stopping_patience=config['training']['early_stopping_patience'],
-            metric_for_best=config['training']['metric_for_best']
+            metric_for_best=config['training']['metric_for_best'],
+            use_amp=config['training'].get('use_amp', True),
+            use_compile=config['training'].get('use_compile', True)
         )
         
         training_time = time.time() - start_time

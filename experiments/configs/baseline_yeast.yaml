@@ -1,12 +1,10 @@
-# Baseline Subset Experiment Configuration for Yeast Dataset
-# Establishes baseline data efficiency curves without active learning
+# Baseline experiment configuration for Yeast dataset
 
 experiment:
-  name: "baseline_subsets_yeast"
-  description: "Train DREAM-RNN on random subsets of yeast promoter data"
-  random_seed: 42
+  name: "baseline_yeast"
+  description: "Baseline data efficiency experiment for Yeast promoter dataset"
+  seed: 42
 
-# Dataset configuration
 data:
   dataset_name: "yeast"
   data_path: "./data/yeast"
@@ -16,60 +14,38 @@ data:
   input_channels: 4     # ACGT only (no singleton flag)
   
   # Subset fractions to test
-  subset_fractions: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
+  subset_fractions: [0.01, 0.02, 0.04, 0.08] # Updated fractions for manual run
   
   # Data loading
   batch_size: 1024
-  num_workers: 0  # Set to 0 to avoid PyTorch 2.4.1 DataLoader multiprocessing issues
+  num_workers: 0 # Set to 0 to fix DataLoader RuntimeError
   pin_memory: true
 
-# Model configuration (Prix Fixe defaults for yeast)
 model:
-  architecture: "dream_rnn"
-  
-  # Architecture hyperparameters
-  hidden_dim: 320
-  cnn_filters: 160  # Per CNN layer (320 total after concat)
-  dropout_cnn: 0.2
-  dropout_lstm: 0.5
+  type: "dream_rnn"
+  dropout: 0.2
 
-# Training configuration
 training:
   num_epochs: 80
+  early_stopping_patience: 10
+  metric_for_best: "pearson_r"  # Can be 'pearson_r', 'spearman_r', or 'loss'
   
-  # Optimizer
-  optimizer: "adamw"
-  lr: 0.005         # For CNN layers
-  lr_lstm: 0.001    # Lower LR for LSTM (attention-like components)
+  # Optimizer settings
+  lr_cnn: 0.005
+  lr_lstm: 0.001
   weight_decay: 0.01
+  pct_start: 0.3  # Fraction of cycle spent increasing LR
   
-  # Scheduler
-  scheduler: "onecycle"
-  pct_start: 0.3  # 30% of training spent increasing LR
-  
-  # Loss function
-  criterion: "mse"
-  
-  # Evaluation
-  use_reverse_complement: true  # Average predictions from both orientations
-  metric_for_best: "pearson_r"  # Save best model based on this metric
-  early_stopping_patience: null  # null = no early stopping
+  # Performance optimizations
+  use_reverse_complement: true  # Average predictions with reverse complement
+  use_amp: true                 # Use automatic mixed precision (FP16) for ~2x speedup
+  use_compile: true             # Use torch.compile() for 10-30% additional speedup
 
-# Output configuration
-output:
-  checkpoint_dir: "./checkpoints"
-  results_dir: "./results"
-  log_dir: "./logs"
-  
-  # What to save
-  save_best_model: true
-  save_final_model: true
-  save_training_history: true
-  save_predictions: false
-
-# Hardware configuration
 hardware:
   device: "cuda"
   device_id: 0
-  deterministic: true
-  benchmark: false
+
+logging:
+  log_dir: "./logs"
+  checkpoint_dir: "./checkpoints"
+  results_dir: "./results"

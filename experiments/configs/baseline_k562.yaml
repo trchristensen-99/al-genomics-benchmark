@@ -13,7 +13,7 @@ data:
   
   # K562-specific settings
   sequence_length: 230  # Extended to 230bp with flanking regions
-  input_channels: 5     # ACGT + is_singleton flag
+  input_channels: 4     # ACGT only (is_singleton removed)
   
   # Subset fractions to test
   subset_fractions: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0]

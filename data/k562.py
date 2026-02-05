@@ -34,13 +34,14 @@ class K562Dataset(SequenceDataset):
     Expected columns:
         - sequence: DNA sequence string
         - activity: Expression measurement (continuous)
-        - is_singleton: Boolean flag indicating if sequence appears only once
         - [optional] chrom, start, end: Genomic coordinates
+        
+    Note: is_singleton flag removed (was all zeros, not used)
     """
     
     SEQUENCE_LENGTH = 230  # Target length after adding flanking regions
     NATIVE_LENGTH = 200  # Most common native sequence length in the dataset
-    NUM_CHANNELS = 5  # ACGT + is_singleton flag
+    NUM_CHANNELS = 4  # ACGT only (is_singleton flag removed as it's all zeros)
     FLANKING_SEQUENCE = "N" * 15  # Placeholder for constant plasmid flanking regions (15bp each side)
     
     def __init__(
@@ -147,11 +148,8 @@ class K562Dataset(SequenceDataset):
         if self.use_flanking:
             self.sequences = self._add_flanking_regions(self.sequences)
         
-        # Store metadata
+        # Store metadata (singleton flag removed as it was all zeros)
         self.metadata = {}
-        # The K562 dataset doesn't have explicit singleton flags in this format
-        # Default: assume all are non-singletons
-        self.metadata['is_singleton'] = np.zeros(len(self.sequences), dtype=bool)
         
         # Store additional metadata if available
         metadata_cols = ['IDs', 'chr', 'data_project', 'OL', 'class', 'K562_lfcSE']
