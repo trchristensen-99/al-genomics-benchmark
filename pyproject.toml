@@ -1,0 +1,44 @@
+[project]
+name = "al-benchmark"
+version = "0.1.0"
+description = "Active learning benchmarking platform for genomic sequence-to-function prediction models"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "pandas>=2.0.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.65.0",
+    "python-dotenv>=1.0.0",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupyter>=1.0.0",
+    "pytest>=7.3.0",
+    "black>=23.3.0",
+    "mypy>=1.3.0",
+    "ipykernel>=6.23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["data", "models", "oracles", "acquisition", "proposal", "simulation", "experiments", "scripts"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

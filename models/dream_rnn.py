@@ -1,0 +1,228 @@
+"""
+DREAM-RNN model architecture for sequence-to-function prediction.
+
+Based on the architecture from Prix Fixe (de Boer Lab) used in the
+Random Promoter DREAM Challenge.
+
+Architecture:
+1. First layer: Dual CNNs with kernel sizes [9, 15] → concatenate
+2. Core: Bi-LSTM → CNN
+3. Final: Conv1D → global average pooling → linear output
+"""
+
+from typing import Optional, Dict, Any
+import torch
+import torch.nn as nn
+from .base import SequenceModel
+
+
+class DREAMRNN(SequenceModel):
+    """
+    DREAM-RNN architecture for genomic sequence-to-function prediction.
+    
+    Architecture details:
+    - First layer: Two parallel 1D CNNs with different kernel sizes (9, 15)
+      to capture motifs of different lengths. Each has 256 channels.
+    - Core: Bidirectional LSTM (320 units each direction = 640 total)
+      followed by another CNN block for feature extraction.
+    - Final: 1D conv (256 filters) → global average pooling → linear layer.
+    
+    The model uses dropout for regularization and supports sequences with
+    different numbers of input channels (4 for ACGT, 5 for ACGT+metadata).
+    
+    Args:
+        input_channels: Number of input channels (4 for ACGT, 5 for ACGT+singleton)
+        sequence_length: Length of input sequences
+        output_dim: Output dimension (default: 1 for regression)
+        hidden_dim: LSTM hidden dimension per direction (default: 320)
+        cnn_filters: Number of filters in CNN layers (default: 256)
+        dropout_cnn: Dropout rate after CNN layers (default: 0.2)
+        dropout_lstm: Dropout rate after LSTM (default: 0.5)
+    """
+    
+    def __init__(
+        self,
+        input_channels: int,
+        sequence_length: int,
+        output_dim: int = 1,
+        hidden_dim: int = 320,
+        cnn_filters: int = 256,
+        dropout_cnn: float = 0.2,
+        dropout_lstm: float = 0.5
+    ):
+        super().__init__(input_channels, sequence_length, output_dim)
+        
+        self.hidden_dim = hidden_dim
+        self.cnn_filters = cnn_filters
+        self.dropout_cnn = dropout_cnn
+        self.dropout_lstm = dropout_lstm
+        
+        # First layer block: Dual CNNs with different kernel sizes
+        # Rationale: Motifs are typically 9-15bp long
+        self.conv1_short = nn.Conv1d(
+            in_channels=input_channels,
+            out_channels=cnn_filters,
+            kernel_size=9,
+            padding='same'  # Keep sequence length
+        )
+        
+        self.conv1_long = nn.Conv1d(
+            in_channels=input_channels,
+            out_channels=cnn_filters,
+            kernel_size=15,
+            padding='same'
+        )
+        
+        self.relu1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(dropout_cnn)
+        
+        # After concatenating, we have 2*cnn_filters channels
+        concat_channels = 2 * cnn_filters
+        
+        # Core block: Bi-LSTM
+        # Input: (batch, seq_len, features) - need to permute from (batch, channels, seq_len)
+        # hidden_dim per direction, so total output is 2*hidden_dim
+        self.lstm = nn.LSTM(
+            input_size=concat_channels,
+            hidden_size=hidden_dim,
+            num_layers=1,
+            batch_first=True,
+            bidirectional=True,
+            dropout=0.0  # Only one layer, so no dropout between layers
+        )
+        
+        # CNN after LSTM
+        lstm_output_size = 2 * hidden_dim  # Bidirectional
+        self.conv2 = nn.Conv1d(
+            in_channels=lstm_output_size,
+            out_channels=cnn_filters,
+            kernel_size=3,
+            padding='same'
+        )
+        self.relu2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(dropout_lstm)
+        
+        # Final block: Conv1D → global average pooling → linear
+        self.conv3 = nn.Conv1d(
+            in_channels=cnn_filters,
+            out_channels=cnn_filters,
+            kernel_size=3,
+            padding='same'
+        )
+        self.relu3 = nn.ReLU()
+        
+        # Global average pooling will be done manually
+        # Linear layer to output
+        self.fc = nn.Linear(cnn_filters, output_dim)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through DREAM-RNN.
+        
+        Args:
+            x: Input tensor of shape (batch_size, input_channels, sequence_length)
+            
+        Returns:
+            Output tensor of shape (batch_size, output_dim)
+        """
+        # Input shape: (batch, channels, seq_len)
+        batch_size = x.size(0)
+        
+        # First layer block: Dual CNNs
+        conv1_short_out = self.conv1_short(x)  # (batch, cnn_filters, seq_len)
+        conv1_long_out = self.conv1_long(x)    # (batch, cnn_filters, seq_len)
+        
+        # Concatenate along channel dimension
+        conv1_out = torch.cat([conv1_short_out, conv1_long_out], dim=1)  # (batch, 2*cnn_filters, seq_len)
+        conv1_out = self.relu1(conv1_out)
+        conv1_out = self.dropout1(conv1_out)
+        
+        # LSTM expects input of shape (batch, seq_len, features)
+        lstm_in = conv1_out.permute(0, 2, 1)  # (batch, seq_len, 2*cnn_filters)
+        
+        # Core block: Bi-LSTM
+        lstm_out, _ = self.lstm(lstm_in)  # (batch, seq_len, 2*hidden_dim)
+        
+        # Convert back to (batch, channels, seq_len) for CNN
+        lstm_out = lstm_out.permute(0, 2, 1)  # (batch, 2*hidden_dim, seq_len)
+        
+        # CNN after LSTM
+        conv2_out = self.conv2(lstm_out)  # (batch, cnn_filters, seq_len)
+        conv2_out = self.relu2(conv2_out)
+        conv2_out = self.dropout2(conv2_out)
+        
+        # Final block: Conv1D
+        conv3_out = self.conv3(conv2_out)  # (batch, cnn_filters, seq_len)
+        conv3_out = self.relu3(conv3_out)
+        
+        # Global average pooling along sequence dimension
+        pooled = torch.mean(conv3_out, dim=2)  # (batch, cnn_filters)
+        
+        # Linear layer to output
+        output = self.fc(pooled)  # (batch, output_dim)
+        
+        # For regression, return raw output (no activation)
+        # If output_dim == 1, squeeze to (batch,)
+        if self.output_dim == 1:
+            output = output.squeeze(1)
+        
+        return output
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get model architecture information."""
+        info = super().get_model_info()
+        info.update({
+            "hidden_dim": self.hidden_dim,
+            "cnn_filters": self.cnn_filters,
+            "dropout_cnn": self.dropout_cnn,
+            "dropout_lstm": self.dropout_lstm,
+        })
+        return info
+
+
+def create_dream_rnn(
+    input_channels: int,
+    sequence_length: int,
+    **kwargs
+) -> DREAMRNN:
+    """
+    Factory function to create a DREAM-RNN model with sensible defaults.
+    
+    Args:
+        input_channels: Number of input channels (4 or 5)
+        sequence_length: Length of input sequences
+        **kwargs: Additional arguments passed to DREAMRNN constructor
+        
+    Returns:
+        Initialized DREAMRNN model
+        
+    Example:
+        >>> model = create_dream_rnn(input_channels=5, sequence_length=230)
+        >>> print(model.get_model_info())
+    """
+    model = DREAMRNN(
+        input_channels=input_channels,
+        sequence_length=sequence_length,
+        **kwargs
+    )
+    
+    # Initialize weights
+    def init_weights(m):
+        if isinstance(m, nn.Conv1d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LSTM):
+            for name, param in m.named_parameters():
+                if 'weight' in name:
+                    nn.init.xavier_normal_(param)
+                elif 'bias' in name:
+                    nn.init.constant_(param, 0)
+    
+    model.apply(init_weights)
+    
+    return model

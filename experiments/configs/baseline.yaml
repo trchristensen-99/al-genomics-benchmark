@@ -1,0 +1,73 @@
+# Baseline Subset Experiment Configuration
+# Establishes baseline data efficiency curves without active learning
+
+experiment:
+  name: "baseline_subsets"
+  description: "Train DREAM-RNN on random subsets of different sizes"
+  random_seed: 42
+
+# Dataset configuration
+data:
+  dataset_name: "k562"  # or "yeast"
+  data_path: "./data/k562"
+  
+  # Subset fractions to test
+  subset_fractions: [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
+  
+  # Data loading
+  batch_size: 1024
+  num_workers: 4
+  pin_memory: true
+
+# Model configuration
+model:
+  architecture: "dream_rnn"
+  
+  # Architecture hyperparameters
+  hidden_dim: 320
+  cnn_filters: 256
+  dropout_cnn: 0.2
+  dropout_lstm: 0.5
+
+# Training configuration
+training:
+  num_epochs: 80
+  
+  # Optimizer
+  optimizer: "adamw"
+  lr: 0.005
+  lr_lstm: 0.001  # Lower LR for LSTM (attention-like components are sensitive)
+  weight_decay: 0.01
+  
+  # Scheduler
+  scheduler: "onecycle"
+  pct_start: 0.3  # 30% of training spent increasing LR
+  
+  # Loss function
+  criterion: "mse"
+  
+  # Evaluation
+  use_reverse_complement: true
+  metric_for_best: "pearson_r"  # Save best model based on this metric
+  early_stopping_patience: null  # null = no early stopping
+
+# Output configuration
+output:
+  checkpoint_dir: "./checkpoints"
+  results_dir: "./results"
+  log_dir: "./logs"
+  
+  # What to save
+  save_best_model: true
+  save_final_model: true
+  save_training_history: true
+  save_predictions: false  # Don't save predictions for baseline (too large)
+
+# Hardware configuration
+hardware:
+  device: "cuda"  # "cuda" or "cpu"
+  device_id: 0  # GPU ID if using CUDA
+  
+  # Reproducibility
+  deterministic: true
+  benchmark: false
