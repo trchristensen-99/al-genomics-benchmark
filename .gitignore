@@ -51,8 +51,15 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
-# Project specific - Large files
-data/
+# Project specific - Large data files (not Python code)
+data/*.txt
+data/*.csv
+data/*.tsv
+data/*.zip
+data/*.tar
+data/*.tar.gz
+data/k562/
+data/yeast/
 logs/
 checkpoints/
 results/
