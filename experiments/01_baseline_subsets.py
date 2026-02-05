@@ -29,10 +29,10 @@ from data.k562 import K562Dataset
 from data.yeast import YeastDataset
 from models.dream_rnn import create_dream_rnn
 from models.training import (
-    train_model,
     create_optimizer_and_scheduler,
     evaluate
 )
+from models.training_optimized import train_model_optimized
 
 
 def set_seed(seed: int):
