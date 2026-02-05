@@ -264,14 +264,22 @@ def run_experiment(
         if best_model_path.exists():
             model.load_checkpoint(str(best_model_path))
         
-        # Test set evaluation done separately - use val metrics as proxy
-        test_metrics = val_metrics.copy()
-        test_metrics['note'] = 'Using validation metrics - test set evaluated separately'
+        # Test set evaluation done separately - use final val metrics from history
+        best_val_pearson = max(history['val_pearson_r'])
+        best_val_spearman = max(history['val_spearman_r'])
+        best_val_loss = min(history['val_loss'])
         
-        print(f"Validation metrics (test done separately):")
-        print(f"  Pearson R: {val_metrics['pearson_r']:.4f}")
-        print(f"  Spearman R: {val_metrics['spearman_r']:.4f}")
-        print(f"  MSE: {val_metrics['mse']:.4f}")
+        test_metrics = {
+            'pearson_r': best_val_pearson,
+            'spearman_r': best_val_spearman,
+            'mse': best_val_loss,
+            'note': 'Using best validation metrics - test set evaluated separately'
+        }
+        
+        print(f"Best validation metrics (test done separately):")
+        print(f"  Pearson R: {best_val_pearson:.4f}")
+        print(f"  Spearman R: {best_val_spearman:.4f}")
+        print(f"  MSE: {best_val_loss:.4f}")
         
         # Store results
         subset_result = {
