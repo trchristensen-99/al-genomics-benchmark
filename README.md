@@ -90,17 +90,34 @@ al-genomics-benchmark/
 
 ## Datasets
 
-### K562 Human Dataset
+### K562 Human MPRA Dataset
 - **Source**: Gosai et al., Nature 2023 (Zenodo: 10698014)
-- **Size**: ~370K sequences, ~230bp each
-- **Task**: Predict regulatory activity from sequence
+- **Training**: 798,064 genomic sequences (230bp) from human genome with MPRA-measured activity
+  - Includes reference and alternate alleles for common genetic variants (UKBB, GTEx)
+  - Sequences from chromosomes 1-6, 8-12, 14-18, 20, 22 (chr 7, 13 held out for test)
+- **Test Sets**:
+  - **In-distribution**: Chr 7 & 13 (66,712 sequences)
+  - **SNV/Variant Effect**: 45,543 ref/alt pairs for predicting expression differences
+  - **OOD (Out-of-Domain)**: Synthetic sequences (not yet located - may require CODA library)
+- **Task**: Predict regulatory activity and variant effects from sequence
 - **Download**: `python scripts/download_data.py --dataset k562`
 
-### Yeast Dataset
-- **Source**: de Boer et al., Nature Biotechnology 2024 (Zenodo: 10633252)
-- **Size**: ~80K sequences, ~80bp each
+### Yeast Random Promoter Dataset
+- **Source**: de Boer et al., Random Promoter DREAM Challenge (Zenodo: 10633252)
+- **Training**: 6,739,258 random synthetic promoter sequences (110bp) with measured expression
+  - Randomly generated DNA sequences in promoter-like context
+  - Split: 5.46M train, 674K validation, 607K test (from random holdout)
+- **Test Sets** (71,103 sequences total):
+  - **In-distribution**: 6,349 random sequences (similar to training)
+  - **SNV/Variant Effect**: 46,237 variant pairs with single nucleotide changes
+  - **OOD (Out-of-Domain)**: 965 native yeast genomic promoters (vs. random training)
+  - **Additional**: High/low expression, challenging, motif perturbation/tiling subsets
 - **Task**: Predict promoter activity from sequence
 - **Download**: `python scripts/download_data.py --dataset yeast`
+
+**Note**: Training data distributions differ between datasets:
+- Human: Genomic sequences (natural) → Test on synthetic (OOD)
+- Yeast: Random sequences (synthetic) → Test on genomic (OOD)
 
 ## Quick Start
 
