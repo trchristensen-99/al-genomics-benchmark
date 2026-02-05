@@ -101,11 +101,8 @@ def train_epoch(
         # Zero gradients
         optimizer.zero_grad()
         
-        # Forward pass
-        if use_reverse_complement and hasattr(model, 'predict'):
-            predictions = model.predict(sequences, use_reverse_complement=True)
-        else:
-            predictions = model(sequences)
+        # Forward pass (don't use predict() during training as it may disable gradients)
+        predictions = model(sequences)
         
         # Compute loss
         loss = criterion(predictions, targets)
