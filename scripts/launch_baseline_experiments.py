@@ -229,7 +229,8 @@ def main():
                     cmd, job_id = create_job(dataset, fraction, seed, gpu_id, config_path)
                     process = launch_job_background(cmd, job_id, log_dir)
                     gpu_jobs[gpu_id] = (process, job_id)
-                    print(f"→ Started: {job_id} (GPU {gpu_id}) [{completed+failed+len(gpu_jobs)-gpu_jobs.values().count(None)}/{len(jobs)}]")
+                    running = sum(1 for v in gpu_jobs.values() if v is not None)
+                    print(f"→ Started: {job_id} (GPU {gpu_id}) [{completed+failed+running}/{len(jobs)}]")
             
             # Sleep briefly before checking again
             time.sleep(2)
