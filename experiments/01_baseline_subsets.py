@@ -116,7 +116,7 @@ def run_experiment(
     
     # Setup directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{config['experiment']['name']}_{dataset_name}_{timestamp}"
+    experiment_name = f"{config['experiment']['name']}_{dataset_name}_seed{seed}_{timestamp}"
     
     checkpoint_dir = Path(config['output']['checkpoint_dir']) / experiment_name
     results_dir = Path(config['output']['results_dir']) / experiment_name
