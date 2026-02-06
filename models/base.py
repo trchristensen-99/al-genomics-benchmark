@@ -70,6 +70,8 @@ class SequenceModel(ABC, nn.Module):
         
         Args:
             x: Input tensor of shape (batch_size, input_channels, sequence_length)
+               For yeast: (batch, 6, 150) - ACGT + RC flag + singleton flag
+               For K562: (batch, 5, 200) - ACGT + RC flag
             use_reverse_complement: Whether to average predictions from both orientations
             
         Returns:
@@ -85,12 +87,19 @@ class SequenceModel(ABC, nn.Module):
                 return pred_fwd
             
             # Reverse complement prediction
-            # Reverse along sequence dimension
+            # 1. Reverse along sequence dimension
             x_rc = x.flip(dims=[2])
-            # Swap channels: A<->T (0<->3), C<->G (1<->2)
-            # Only swap first 4 channels (ACGT), preserve metadata channels
+            
+            # 2. Swap ACGT channels: A<->T (0<->3), C<->G (1<->2)
             x_rc_swapped = x_rc.clone()
             x_rc_swapped[:, [0, 1, 2, 3], :] = x_rc[:, [3, 2, 1, 0], :]
+            
+            # 3. Set reverse complement flag to 1 (channel 4)
+            if x.shape[1] >= 5:  # Has RC flag channel
+                x_rc_swapped[:, 4, :] = 1.0
+            
+            # 4. Keep other metadata channels unchanged (e.g., singleton flag)
+            # They're already copied in the clone() operation
             
             pred_rc = self.forward(x_rc_swapped)
             

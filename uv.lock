@@ -12,6 +12,7 @@ name = "al-benchmark"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "biopython" },
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
@@ -35,6 +36,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "biopython", specifier = ">=1.86" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.3.0" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.23.0" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.0.0" },
@@ -168,6 +170,25 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b0/1c6a16426d389813b48d95e26898aff79abbde42ad353958ad95cc8c9b21/beautifulsoup4-4.14.3.tar.gz", hash = "sha256:6292b1c5186d356bba669ef9f7f051757099565ad9ada5dd630bd9de5fa7fb86", size = 627737, upload-time = "2025-11-30T15:08:26.084Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1a/39/47f9197bdd44df24d67ac8893641e16f386c984a0619ef2ee4c51fbbc019/beautifulsoup4-4.14.3-py3-none-any.whl", hash = "sha256:0918bfe44902e6ad8d57732ba310582e98da931428d231a5ecb9e7c703a735bb", size = 107721, upload-time = "2025-11-30T15:08:24.087Z" },
+]
+
+[[package]]
+name = "biopython"
+version = "1.86"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/61/c59a849bd457c8a1b408ae828dbcc15e674962b5a29705e869e15b32bf25/biopython-1.86.tar.gz", hash = "sha256:93a50b586a4d2cec68ab2f99d03ef583c5761d8fba5535cb8e81da781d0d92ff", size = 19835323, upload-time = "2025-10-28T21:18:31.041Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/f5/37d6bb3a1245ec5f5f1c66d5cd790b06cdb54a75b36849893405c17f3612/biopython-1.86-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:ba88b0754ad53c93eba11d910364cfc773686933c89a886522309ba903151e50", size = 2691944, upload-time = "2025-10-28T21:27:24.053Z" },
+    { url = "https://files.pythonhosted.org/packages/14/12/44d71f333b7302b30788df80705f2207c47b54c17d0935a378dfc709507d/biopython-1.86-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:6cceb32b9036bbdc59962e31bd1605ece24edc226c0d50f99839948b5b5c9dda", size = 2669434, upload-time = "2025-10-28T21:26:49.145Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/1b/731060090ed29b5ac2484865255f1f363a50afb7275717ceb2c6f20d3ea4/biopython-1.86-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f0f040ff85bd7d0ee06574bc6d032bc666802f2fe781b0c316b936237eb3d17e", size = 3196718, upload-time = "2025-10-29T00:35:47.806Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/8d/8409535c341061b9c78faf151e73b484b456b3c3bdf59b27cf3984f16fbc/biopython-1.86-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6ac858fd71f1093380d8b0a16acf060e7c228ad65f9ecacdb9f5760cfb9f59b1", size = 3218383, upload-time = "2025-10-29T00:35:53.523Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/bc/5e93a11f70732122679747a728509d03a6a066b178cc1d7ca30ed2f1ebee/biopython-1.86-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:da4bcf5a48ee647624e2d0bedac7fb1c24ef0facd514519cca074593b8a6a40e", size = 3168368, upload-time = "2025-10-28T23:53:16.425Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/c6/e187940571a3a24d20f407f1d7514ab1fe0dc9fa49e01790c4bd56ced0bc/biopython-1.86-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1d4dd9090caaf364a08ab54cd561f37c5f4ea5bcc8f0189d332dcd36d6df5767", size = 3186451, upload-time = "2025-10-28T23:53:22.463Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/88/1e8ffb0db6a03888768613d682a79043e9975067b9095e644a6872905c88/biopython-1.86-cp311-cp311-win32.whl", hash = "sha256:90591f4554c09d311193e7774b5143442c67e178a5b7d929aaa2a054048b22a7", size = 2697756, upload-time = "2025-10-28T21:32:23.017Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/b2/e34e45d6cb46c96486a2ed5f07874b6c9493dec68b9d6262ae05f4fe909b/biopython-1.86-cp311-cp311-win_amd64.whl", hash = "sha256:0a95321ca929c04c934e62252c9e2cc5c4fd13ce575798d98af2d79512334b9b", size = 2733781, upload-time = "2025-10-28T21:32:18.409Z" },
 ]
 
 [[package]]
@@ -1905,6 +1926,7 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/d8/9e6b8e7df981a1e3ea3907fd5a74673e791da483e8c307f0b6ff012626d0/torch-2.10.0-1-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:f699f31a236a677b3118bc0a3ef3d89c0c29b5ec0b20f4c4bf0b110378487464", size = 79423460, upload-time = "2026-02-06T17:37:39.657Z" },
     { url = "https://files.pythonhosted.org/packages/78/89/f5554b13ebd71e05c0b002f95148033e730d3f7067f67423026cc9c69410/torch-2.10.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:3282d9febd1e4e476630a099692b44fdc214ee9bf8ee5377732d9d9dfe5712e4", size = 145992610, upload-time = "2026-01-21T16:25:26.327Z" },
     { url = "https://files.pythonhosted.org/packages/ae/30/a3a2120621bf9c17779b169fc17e3dc29b230c29d0f8222f499f5e159aa8/torch-2.10.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:a2f9edd8dbc99f62bc4dfb78af7bf89499bca3d753423ac1b4e06592e467b763", size = 915607863, upload-time = "2026-01-21T16:25:06.696Z" },
     { url = "https://files.pythonhosted.org/packages/6f/3d/c87b33c5f260a2a8ad68da7147e105f05868c281c63d65ed85aa4da98c66/torch-2.10.0-cp311-cp311-win_amd64.whl", hash = "sha256:29b7009dba4b7a1c960260fc8ac85022c784250af43af9fb0ebafc9883782ebd", size = 113723116, upload-time = "2026-01-21T16:25:21.916Z" },

@@ -27,7 +27,10 @@ def load_model(checkpoint_path: str, config: dict, device: torch.device) -> DREA
     model = DREAMRNN(
         input_channels=config['input_channels'],
         sequence_length=config['sequence_length'],
-        dropout=config.get('dropout', 0.2)
+        dropout_cnn=config.get('dropout_cnn', 0.1),
+        dropout_lstm=config.get('dropout_lstm', 0.1),
+        hidden_dim=config.get('hidden_dim', 320),
+        cnn_filters=config.get('cnn_filters', 256)
     )
     model.load_checkpoint(checkpoint_path)
     model = model.to(device)
@@ -40,15 +43,29 @@ def predict_with_reverse_complement(
     sequences: np.ndarray,
     batch_size: int,
     device: torch.device,
-    use_reverse_complement: bool = True
+    use_reverse_complement: bool = True,
+    dataset_name: str = 'yeast'
 ) -> np.ndarray:
     """
     Make predictions, optionally averaging with reverse complement predictions.
-    """
-    from data.utils import reverse_complement
     
-    # Encode sequences
-    encoded = np.array([one_hot_encode(seq) for seq in sequences])
+    Args:
+        dataset_name: 'yeast' or 'k562' - determines encoding format
+    """
+    from data.utils import reverse_complement, one_hot_encode
+    from data.yeast import YeastDataset
+    from data.k562 import K562Dataset
+    
+    # Use dataset's encode_sequence method for proper channel handling
+    if dataset_name == 'yeast':
+        # Create temporary dataset to use its encoding
+        temp_dataset = YeastDataset(data_path='./data/yeast', split='test')
+        # For test sequences, we don't have singleton flags, so assume all are non-singleton
+        encoded = np.array([temp_dataset.encode_sequence(seq, {'is_singleton': False}) for seq in sequences])
+    else:  # k562
+        temp_dataset = K562Dataset(data_path='./data/k562', split='test', use_hashfrag=False, use_chromosome_fallback=True)
+        encoded = np.array([temp_dataset.encode_sequence(seq) for seq in sequences])
+    
     encoded_tensor = torch.from_numpy(encoded).float()
     
     dataset = TensorDataset(encoded_tensor)
@@ -66,7 +83,10 @@ def predict_with_reverse_complement(
     if use_reverse_complement:
         # Get reverse complement predictions
         rc_sequences = [reverse_complement(seq) for seq in sequences]
-        rc_encoded = np.array([one_hot_encode(seq) for seq in rc_sequences])
+        if dataset_name == 'yeast':
+            rc_encoded = np.array([temp_dataset.encode_sequence(seq, {'is_singleton': False}) for seq in rc_sequences])
+        else:
+            rc_encoded = np.array([temp_dataset.encode_sequence(seq) for seq in rc_sequences])
         rc_tensor = torch.from_numpy(rc_encoded).float()
         
         rc_dataset = TensorDataset(rc_tensor)
@@ -105,7 +125,7 @@ def evaluate_k562_in_distribution(
     print(f"Test sequences: {len(sequences):,}")
     
     predictions = predict_with_reverse_complement(
-        model, sequences, batch_size, device, use_reverse_complement=True
+        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='yeast'
     )
     
     pearson_r, _ = pearsonr(labels, predictions)
@@ -190,7 +210,7 @@ def evaluate_yeast_in_distribution(
     print(f"Test sequences: {len(sequences):,}")
     
     predictions = predict_with_reverse_complement(
-        model, sequences, batch_size, device, use_reverse_complement=True
+        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='yeast'
     )
     
     pearson_r, _ = pearsonr(labels, predictions)
@@ -245,7 +265,7 @@ def evaluate_yeast_snv(
     labels = df_filtered['expression'].values.astype(np.float32)
     
     predictions = predict_with_reverse_complement(
-        model, sequences, batch_size, device, use_reverse_complement=True
+        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='yeast'
     )
     
     pearson_r, _ = pearsonr(labels, predictions)
@@ -296,7 +316,7 @@ def evaluate_yeast_ood(
     labels = df_filtered['expression'].values.astype(np.float32)
     
     predictions = predict_with_reverse_complement(
-        model, sequences, batch_size, device, use_reverse_complement=True
+        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='yeast'
     )
     
     pearson_r, _ = pearsonr(labels, predictions)
@@ -339,18 +359,25 @@ def main():
     print(f"Using device: {device}")
     
     # Load model configuration
+    # Note: Models were trained with cnn_filters=160 (original Prix Fixe default)
     if args.dataset == 'k562':
         config = {
-            'input_channels': 5,
-            'sequence_length': 230,
-            'dropout': 0.2
+            'input_channels': 5,  # ACGT + reverse complement flag
+            'sequence_length': 200,  # K562 sequences are 200bp
+            'dropout_cnn': 0.1,
+            'dropout_lstm': 0.1,
+            'hidden_dim': 320,
+            'cnn_filters': 160  # Original Prix Fixe default
         }
         data_dir = Path('./data/k562')
     else:  # yeast
         config = {
-            'input_channels': 4,
-            'sequence_length': 110,
-            'dropout': 0.2
+            'input_channels': 6,  # ACGT + reverse complement flag + singleton flag
+            'sequence_length': 150,  # 57bp + 80bp + 13bp plasmid context
+            'dropout_cnn': 0.1,
+            'dropout_lstm': 0.1,
+            'hidden_dim': 320,
+            'cnn_filters': 160  # Original Prix Fixe default
         }
         data_dir = Path('./data/yeast')
     

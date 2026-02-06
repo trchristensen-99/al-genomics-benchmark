@@ -38,8 +38,8 @@ class DREAMRNN(SequenceModel):
         output_dim: Output dimension (default: 1 for regression)
         hidden_dim: LSTM hidden dimension per direction (default: 320)
         cnn_filters: Number of filters PER CNN in dual blocks (default: 160, so 320 total after concat)
-        dropout_cnn: Dropout rate after CNN layers (default: 0.2)
-        dropout_lstm: Dropout rate after LSTM (default: 0.5)
+        dropout_cnn: Dropout rate after CNN layers (default: 0.2 in original, 0.1 for MC dropout)
+        dropout_lstm: Dropout rate after LSTM (default: 0.5 in original, 0.1 for MC dropout)
     """
     
     def __init__(
@@ -48,7 +48,7 @@ class DREAMRNN(SequenceModel):
         sequence_length: int,
         output_dim: int = 1,
         hidden_dim: int = 320,
-        cnn_filters: int = 160,  # Changed from 256 to match Prix Fixe
+        cnn_filters: int = 160,  # Original Prix Fixe: 160 per CNN → 320 total after concat
         dropout_cnn: float = 0.2,
         dropout_lstm: float = 0.5
     ):

@@ -119,6 +119,94 @@ al-genomics-benchmark/
 - Human: Genomic sequences (natural) → Test on synthetic (OOD)
 - Yeast: Random sequences (synthetic) → Test on genomic (OOD)
 
+## Data Splitting with HashFrag
+
+This project uses **HashFrag** to create homology-aware train/validation/test splits for the K562 dataset, preventing data leakage from homologous (similar) sequences spanning different splits.
+
+### Why HashFrag?
+
+DNA sequences can be homologous due to duplication, repeat elements, or evolutionary relationships. If a sequence in the training set is very similar to a sequence in the test set, a model can "memorize" the training sequence and use it to predict the test sequence without actually learning the underlying regulatory logic. HashFrag solves this by ensuring train/val/test splits are truly independent.
+
+**How it works:**
+1. Uses BLAST to find candidate homologous pairs
+2. Computes exact Smith-Waterman alignment scores
+3. Groups sequences into homology clusters (graph-based)
+4. Distributes entire clusters across train/val/test splits
+5. No cluster spans multiple splits → no leakage!
+
+### Setup HashFrag
+
+**BLAST+ and HashFrag are already installed!**
+
+To use them, simply source the environment setup script:
+
+```bash
+source setup_env.sh
+```
+
+This adds BLAST+ and HashFrag to your PATH. To make this automatic, add to your `~/.bashrc`:
+
+```bash
+echo 'source /home/trevor/al-genomics-benchmark/setup_env.sh' >> ~/.bashrc
+```
+
+### Creating Splits
+
+**For K562 dataset only** (yeast uses provided splits):
+
+**Option 1: Local (slow, 4-8 hours)**
+```bash
+python scripts/create_hashfrag_splits.py
+```
+
+**Option 2: HPC (recommended)**
+```bash
+# Submit to SLURM
+sbatch scripts/slurm/create_hashfrag_splits.sh
+
+# Monitor progress
+tail -f logs/hashfrag_k562_*.log
+```
+
+Once created, splits are cached at `data/k562/hashfrag_splits/` and experiments will use them automatically.
+
+### Split Configuration
+
+- **Threshold**: Smith-Waterman score ≥60 defines homology
+- **Split ratio**: 80% train+pool / 10% validation / 10% test
+- **Train/Pool split**: First 100K from train for active learning experiments, rest for pool
+- **Expected sizes**: ~293K train+pool, ~37K validation, ~37K test
+
+### Verifying Splits
+
+```bash
+# Check if splits exist
+ls -lh data/k562/hashfrag_splits/
+
+# View split sizes
+python -c "
+import numpy as np
+for split in ['train', 'pool', 'val', 'test']:
+    idx = np.load(f'data/k562/hashfrag_splits/{split}_indices.npy')
+    print(f'{split:5s}: {len(idx):>7,} sequences')
+"
+```
+
+### Using in Experiments
+
+Experiments automatically use HashFrag splits when available:
+
+```python
+from data.k562 import K562Dataset
+
+# Will use cached HashFrag splits if they exist
+dataset = K562Dataset(
+    data_path="./data/k562",
+    split='train',
+    use_hashfrag=True  # default
+)
+```
+
 ## Quick Start
 
 ### 1. Download Data

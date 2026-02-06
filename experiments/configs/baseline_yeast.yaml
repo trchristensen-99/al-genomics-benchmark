@@ -10,20 +10,23 @@ data:
   data_path: "./data/yeast"
   
   # Yeast-specific settings
-  sequence_length: 110   # Most common promoter length in dataset (padded/truncated)
-  input_channels: 4     # ACGT only (no singleton flag)
+  sequence_length: 150   # 57bp + 80bp random + 13bp plasmid flanking  
+  input_channels: 6     # ACGT + reverse complement flag + singleton flag
   
   # Subset fractions to test
   subset_fractions: [0.01, 0.02, 0.04, 0.08] # Updated fractions for manual run
   
   # Data loading
-  batch_size: 1024
+  batch_size: 1024  # Original DREAM-RNN (Prix Fixe) batch size
   num_workers: 0 # Set to 0 to fix DataLoader RuntimeError
   pin_memory: true
 
 model:
   type: "dream_rnn"
-  dropout: 0.2
+  hidden_dim: 320
+  cnn_filters: 160  # Original Prix Fixe: 160 per CNN → 320 total after concat
+  dropout_cnn: 0.1  # Benchmark modification for MC dropout (original: 0.2)
+  dropout_lstm: 0.1  # Benchmark modification for MC dropout (original: 0.5)
 
 training:
   num_epochs: 80
@@ -31,10 +34,10 @@ training:
   metric_for_best: "pearson_r"  # Can be 'pearson_r', 'spearman_r', or 'loss'
   
   # Optimizer settings
-  lr_cnn: 0.005
-  lr_lstm: 0.001
+  lr: 0.005              # For CNN layers
+  lr_lstm: 0.001         # Lower LR for LSTM
   weight_decay: 0.01
-  pct_start: 0.3  # Fraction of cycle spent increasing LR
+  pct_start: 0.3         # Fraction of cycle spent increasing LR
   
   # Performance optimizations
   use_reverse_complement: true  # Average predictions with reverse complement
@@ -45,7 +48,7 @@ hardware:
   device: "cuda"
   device_id: 0
 
-logging:
-  log_dir: "./logs"
+output:
   checkpoint_dir: "./checkpoints"
   results_dir: "./results"
+  log_dir: "./logs"

@@ -353,6 +353,12 @@ def main():
         default=None,
         help='GPU device ID to use'
     )
+    parser.add_argument(
+        '--epochs',
+        type=int,
+        default=None,
+        help='Override number of epochs'
+    )
     
     args = parser.parse_args()
     
@@ -362,6 +368,10 @@ def main():
     # Override GPU if specified
     if args.gpu is not None:
         config['hardware']['device_id'] = args.gpu
+    
+    # Override epochs if specified
+    if args.epochs is not None:
+        config['training']['num_epochs'] = args.epochs
     
     # Run experiment
     try:
