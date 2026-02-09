@@ -1,0 +1,55 @@
+# Baseline experiment configuration for Yeast dataset
+# NO EARLY STOPPING - trains for full 80 epochs as in original paper
+
+experiment:
+  name: "baseline_yeast_no_early_stop"
+  description: "Baseline data efficiency experiment for Yeast promoter dataset - NO EARLY STOPPING"
+  seed: 42
+
+data:
+  dataset_name: "yeast"
+  data_path: "./data/yeast"
+  
+  # Yeast-specific settings
+  sequence_length: 150   # 57bp + 80bp random + 13bp plasmid flanking  
+  input_channels: 6     # ACGT + reverse complement flag + singleton flag
+  
+  # Subset fractions to test
+  subset_fractions: [0.02, 0.04, 0.16, 0.32] # Focus on problematic fractions
+  
+  # Data loading
+  batch_size: 1024  # Original DREAM-RNN (Prix Fixe) batch size
+  num_workers: 0 # Set to 0 to fix DataLoader RuntimeError
+  pin_memory: true
+
+model:
+  type: "dream_rnn"
+  hidden_dim: 320
+  cnn_filters: 160  # Original Prix Fixe: 160 per CNN → 320 total after concat
+  dropout_cnn: 0.1  # Benchmark modification for MC dropout (original: 0.2)
+  dropout_lstm: 0.1  # Benchmark modification for MC dropout (original: 0.5)
+
+training:
+  num_epochs: 80
+  early_stopping_patience: null  # NO EARLY STOPPING - train for full 80 epochs
+  metric_for_best: "pearson_r"  # Can be 'pearson_r', 'spearman_r', or 'loss'
+  
+  # Optimizer settings
+  lr: 0.005              # For CNN layers
+  lr_lstm: 0.001         # Lower LR for LSTM
+  weight_decay: 0.01
+  pct_start: 0.3         # Fraction of cycle spent increasing LR
+  
+  # Performance optimizations
+  use_reverse_complement: true  # Average predictions with reverse complement
+  use_amp: true                 # Use automatic mixed precision (FP16) for ~2x speedup
+  use_compile: false            # Disabled due to compatibility issues
+
+hardware:
+  device: "cuda"
+  device_id: 0
+
+output:
+  checkpoint_dir: "./checkpoints"
+  results_dir: "./results"
+  log_dir: "./logs"

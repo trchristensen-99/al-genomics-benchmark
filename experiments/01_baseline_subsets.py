@@ -116,13 +116,14 @@ def run_experiment(
     
     # Setup directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{config['experiment']['name']}_{dataset_name}_seed{seed}_{timestamp}"
+    experiment_name = f"{config['experiment']['name']}_seed{seed}_{timestamp}"
     
-    checkpoint_dir = Path(config['output']['checkpoint_dir']) / experiment_name
+    # New structure: checkpoints/{dataset}/fraction_{fraction}/{experiment_name}/
+    base_checkpoint_dir = Path(config['output']['checkpoint_dir']) / dataset_name
     results_dir = Path(config['output']['results_dir']) / experiment_name
     log_dir = Path(config['output']['log_dir']) / experiment_name
     
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    base_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     results_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
     
@@ -231,7 +232,8 @@ def run_experiment(
         criterion = nn.MSELoss()
         
         # Create checkpoint directory for this subset
-        subset_checkpoint_dir = checkpoint_dir / f"fraction_{fraction:.3f}"
+        # Structure: checkpoints/{dataset}/fraction_{fraction}/{experiment_name}/
+        subset_checkpoint_dir = base_checkpoint_dir / f"fraction_{fraction:.3f}" / experiment_name
         subset_checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         # Train model

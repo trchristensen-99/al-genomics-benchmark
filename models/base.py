@@ -133,6 +133,10 @@ class SequenceModel(ABC, nn.Module):
             path: Path to save checkpoint
             **kwargs: Additional metadata to save
         """
+        # Ensure parent directory exists
+        from pathlib import Path
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        
         checkpoint = {
             'model_state_dict': self.state_dict(),
             'model_info': self.get_model_info(),

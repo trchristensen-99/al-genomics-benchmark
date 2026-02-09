@@ -26,6 +26,8 @@ venv/
 ENV/
 env/
 .venv
+env.bak/
+venv.bak/
 
 # Testing
 .pytest_cache/
@@ -34,24 +36,48 @@ htmlcov/
 .tox/
 .hypothesis/
 
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
 
 # Jupyter
-.ipynb_checkpoints
+.ipynb_checkpoints/
 *.ipynb_checkpoints/
 
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Environment
+.env
+.env.local
 
-# Project specific - Large data files (not Python code)
+# Project specific - Training outputs
+checkpoints/
+logs/
+plots/
+results/
+archive/
+
+# Project specific - Model files (large)
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.hdf5
+
+# Project specific - Large data files
 data/*.txt
 data/*.csv
 data/*.tsv
@@ -60,23 +86,16 @@ data/*.tar
 data/*.tar.gz
 data/k562/
 data/yeast/
-logs/
-checkpoints/
-results/
-*.pt
-*.pth
-*.h5
-*.hdf5
+!data/__init__.py
+!data/*.py
 
-# Environment
-.env
-.env.local
-
-# MacOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# HashFrag work directories (temporary BLAST outputs)
+**/hashfrag_work/
+**/hashfrag_output/
+data/hashfrag_work/
 
 # Temporary files
 *.tmp
+*.temp
 *.log
+*.out

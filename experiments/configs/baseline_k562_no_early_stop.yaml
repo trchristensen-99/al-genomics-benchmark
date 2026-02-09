@@ -1,0 +1,59 @@
+# Baseline experiment configuration for K562 dataset
+# NO EARLY STOPPING - trains for full 80 epochs as in original paper
+
+experiment:
+  name: "baseline_k562_no_early_stop"
+  description: "Baseline data efficiency experiment for K562 human MPRA dataset - NO EARLY STOPPING"
+  random_seed: 42
+
+data:
+  dataset_name: "k562"
+  data_path: "./data/k562"
+  
+  # K562-specific settings
+  sequence_length: 200  # Genomic sequences (pad shorter with Ns)
+  input_channels: 5     # ACGT + reverse complement flag
+  
+  # Subset fractions to test
+  subset_fractions: [0.05, 0.10, 0.25, 0.50] # Focus on fractions that stopped early
+  
+  # Data loading
+  batch_size: 1024  # Original DREAM-RNN (Prix Fixe) batch size
+  num_workers: 0 # Set to 0 to fix DataLoader RuntimeError
+  pin_memory: true
+
+model:
+  type: "dream_rnn"
+  hidden_dim: 320
+  cnn_filters: 160  # Original Prix Fixe: 160 per CNN → 320 total after concat
+  dropout_cnn: 0.1  # Benchmark modification for MC dropout (original: 0.2)
+  dropout_lstm: 0.1  # Benchmark modification for MC dropout (original: 0.5)
+
+training:
+  num_epochs: 80
+  early_stopping_patience: null  # NO EARLY STOPPING - train for full 80 epochs
+  
+  # Optimizer
+  lr: 0.005         # For CNN layers
+  lr_lstm: 0.001    # Lower LR for LSTM
+  weight_decay: 0.01
+  
+  # Scheduler
+  pct_start: 0.3  # 30% of training spent increasing LR
+  
+  # Evaluation
+  use_reverse_complement: true
+  metric_for_best: "pearson_r"
+  
+  # Performance optimizations
+  use_amp: true      # Use automatic mixed precision (FP16) for ~2x speedup
+  use_compile: false # Disabled due to compatibility issues
+
+hardware:
+  device: "cuda"
+  device_id: 0
+
+output:
+  checkpoint_dir: "./checkpoints"
+  results_dir: "./results"
+  log_dir: "./logs"

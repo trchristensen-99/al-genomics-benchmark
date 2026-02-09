@@ -63,8 +63,32 @@ def predict_with_reverse_complement(
         # For test sequences, we don't have singleton flags, so assume all are non-singleton
         encoded = np.array([temp_dataset.encode_sequence(seq, {'is_singleton': False}) for seq in sequences])
     else:  # k562
-        temp_dataset = K562Dataset(data_path='./data/k562', split='test', use_hashfrag=False, use_chromosome_fallback=True)
-        encoded = np.array([temp_dataset.encode_sequence(seq) for seq in sequences])
+        # For K562, encode directly without loading full dataset
+        from data.utils import one_hot_encode, pad_sequence
+        padded_sequences = []
+        for seq in sequences:
+            if len(seq) < 200:
+                # Pad equally on both ends with Ns
+                padded = pad_sequence(seq, target_length=200, pad_char='N', mode='both')
+            elif len(seq) > 200:
+                # Truncate to 200bp (center-aligned)
+                start = (len(seq) - 200) // 2
+                padded = seq[start:start + 200]
+            else:
+                padded = seq
+            padded_sequences.append(padded)
+        
+        # Encode: 5 channels = ACGT (4) + reverse complement flag (1)
+        encoded = []
+        for seq in padded_sequences:
+            # One-hot encode ACGT (4 channels)
+            one_hot = one_hot_encode(seq, add_singleton_channel=False)  # Shape: (4, 200)
+            # Add reverse complement channel (always 0 for forward strand)
+            rc_channel = np.zeros((1, len(seq)), dtype=np.float32)
+            # Concatenate: (4, 200) + (1, 200) = (5, 200)
+            encoded_seq = np.concatenate([one_hot, rc_channel], axis=0)
+            encoded.append(encoded_seq)
+        encoded = np.array(encoded)
     
     encoded_tensor = torch.from_numpy(encoded).float()
     
@@ -85,8 +109,28 @@ def predict_with_reverse_complement(
         rc_sequences = [reverse_complement(seq) for seq in sequences]
         if dataset_name == 'yeast':
             rc_encoded = np.array([temp_dataset.encode_sequence(seq, {'is_singleton': False}) for seq in rc_sequences])
-        else:
-            rc_encoded = np.array([temp_dataset.encode_sequence(seq) for seq in rc_sequences])
+        else:  # k562
+            # Pad and encode reverse complement sequences
+            from data.utils import one_hot_encode, pad_sequence
+            rc_padded = []
+            for seq in rc_sequences:
+                if len(seq) < 200:
+                    padded = pad_sequence(seq, target_length=200, pad_char='N', mode='both')
+                elif len(seq) > 200:
+                    start = (len(seq) - 200) // 2
+                    padded = seq[start:start + 200]
+                else:
+                    padded = seq
+                rc_padded.append(padded)
+            
+            # Encode reverse complement: set RC flag to 1
+            rc_encoded = []
+            for seq in rc_padded:
+                one_hot = one_hot_encode(seq, add_singleton_channel=False)
+                rc_channel = np.ones((1, len(seq)), dtype=np.float32)  # RC flag = 1
+                encoded_seq = np.concatenate([one_hot, rc_channel], axis=0)
+                rc_encoded.append(encoded_seq)
+            rc_encoded = np.array(rc_encoded)
         rc_tensor = torch.from_numpy(rc_encoded).float()
         
         rc_dataset = TensorDataset(rc_tensor)
@@ -125,7 +169,7 @@ def evaluate_k562_in_distribution(
     print(f"Test sequences: {len(sequences):,}")
     
     predictions = predict_with_reverse_complement(
-        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='yeast'
+        model, sequences, batch_size, device, use_reverse_complement=True, dataset_name='k562'
     )
     
     pearson_r, _ = pearsonr(labels, predictions)
@@ -163,10 +207,10 @@ def evaluate_k562_snv(
     
     # Predict reference and alternate sequences
     ref_pred = predict_with_reverse_complement(
-        model, df['sequence_ref'].values, batch_size, device
+        model, df['sequence_ref'].values, batch_size, device, use_reverse_complement=True, dataset_name='k562'
     )
     alt_pred = predict_with_reverse_complement(
-        model, df['sequence_alt'].values, batch_size, device
+        model, df['sequence_alt'].values, batch_size, device, use_reverse_complement=True, dataset_name='k562'
     )
     
     # Calculate predicted delta

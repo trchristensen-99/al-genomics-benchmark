@@ -279,8 +279,11 @@ class K562Dataset(SequenceDataset):
         # Get the 80% training data
         train_pool_seqs, train_pool_labels, train_pool_indices = raw_splits['train']
         
-        # Split into train (100K) and pool (rest)
-        n_train = min(100000, len(train_pool_indices))
+        # Split into train and pool
+        # For baseline experiments, we use the full train pool (no 100K cap)
+        # The train pool is the full 80% of data, pool is not used for baseline
+        # We'll use all of train_pool_indices as the train split
+        n_train = len(train_pool_indices)  # Use full train pool, no cap
         
         # Randomly shuffle and split
         np.random.seed(42)

@@ -352,12 +352,18 @@ class HashFragSplitter:
         self.sequences_to_fasta(sequences, fasta_path, sequence_ids)
         
         # Step 2: Run HashFrag
+        # First split: (train+val) vs test
+        # We want 90% (train+val) vs 10% (test)
+        # So pass train_ratio=0.9, test_ratio=0.1 for the first split
+        train_val_ratio = train_ratio + val_ratio  # 0.9 for 80:10:10
+        test_ratio_first = test_ratio  # 0.1 for 80:10:10
+        
         output_dir = self.run_hashfrag(
             fasta_path,
             output_name="hashfrag_output",
-            train_ratio=train_ratio,
-            val_ratio=val_ratio,
-            test_ratio=test_ratio,
+            train_ratio=train_val_ratio,  # 0.9 for first split
+            val_ratio=0.0,  # Not used in first split
+            test_ratio=test_ratio_first,  # 0.1 for first split
             skip_revcomp=skip_revcomp
         )
         
