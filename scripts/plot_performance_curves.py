@@ -193,7 +193,7 @@ def plot_curves(organized_results: dict, dataset: str, output_dir: Path):
         if test_type not in organized_results:
             ax.text(0.5, 0.5, f'No {test_label} data available', 
                    ha='center', va='center', transform=ax.transAxes)
-            ax.set_xlabel('Training Data Fraction (%)')
+            ax.set_xlabel('Training Data Fraction')
             ax.set_ylabel('Pearson Correlation')
             ax.set_title(test_label)
             continue
@@ -208,7 +208,9 @@ def plot_curves(organized_results: dict, dataset: str, output_dir: Path):
                 # Average multiple runs at same fraction
                 avg_pearson = np.mean(values)
                 std_pearson = np.std(values) if len(values) > 1 else 0.0
-                fractions.append(fraction * 100)  # Convert to percentage for x-axis
+                # Keep fraction as decimal (0.005, 0.02, etc.) for log scale
+                # We'll format labels as percentages later
+                fractions.append(fraction)  # Keep as fraction (0.005, 0.02, etc.) for log scale
                 pearson_values.append(avg_pearson)  # Keep as 0-1 for y-axis
                 pearson_stds.append(std_pearson)  # Standard deviation
         
@@ -222,14 +224,11 @@ def plot_curves(organized_results: dict, dataset: str, output_dir: Path):
             pearson_values = list(pearson_values)
             pearson_stds = list(pearson_stds)
             
-            # Plot curve with error bars (black for visibility)
-            # Using standard deviation to show variability across runs
-            ax.errorbar(fractions, pearson_values, yerr=pearson_stds, 
-                       fmt='o-', linewidth=2, markersize=8, 
-                       capsize=5, capthick=2, elinewidth=2,
-                       label='Pearson R', color='#2E86AB', 
-                       ecolor='black',  # Black error bars for visibility
-                       alpha=0.8, errorevery=1)
+            # Plot curve with shaded region (no error bars - shading shows std dev)
+            ax.plot(fractions, pearson_values, 
+                   'o-', linewidth=2, markersize=8, 
+                   label='Pearson R', color='#2E86AB', 
+                   alpha=0.8)
             ax.fill_between(fractions, 
                            [v - s for v, s in zip(pearson_values, pearson_stds)],
                            [v + s for v, s in zip(pearson_values, pearson_stds)],
@@ -238,23 +237,42 @@ def plot_curves(organized_results: dict, dataset: str, output_dir: Path):
             # Add grid
             ax.grid(True, alpha=0.3, linestyle='--')
             
-            # Set axis limits
-            ax.set_xlim(0, 100)
+            # Set log scale for x-axis (using fraction values, not percentages)
+            ax.set_xscale('log')
+            
+            # Set axis limits (fractions are already in 0.005-1.0 range)
+            # For log scale, we need to avoid 0, so set a minimum
+            min_frac = min(fractions) if fractions else 0.001
+            max_frac = max(fractions) if fractions else 1.0
+            ax.set_xlim(max(0.001, min_frac * 0.5), min(1.2, max_frac * 1.2))
             ax.set_ylim(0, 1)
             
             # Format axes
-            ax.set_xlabel('Training Data Fraction (%)', fontsize=12)
+            ax.set_xlabel('Training Data Fraction', fontsize=12)
             ax.set_ylabel('Pearson Correlation', fontsize=12)
             ax.set_title(test_label, fontsize=14, fontweight='bold')
+            
+            # Set log scale tick locations and labels
+            # Format as percentage for readability
+            from matplotlib.ticker import LogLocator, FuncFormatter
+            ax.xaxis.set_major_locator(LogLocator(base=10, numticks=10))
+            # Format as percentage
+            def log_formatter(x, pos):
+                if x < 0.01:
+                    return f'{x*100:.2f}%'
+                elif x < 0.1:
+                    return f'{x*100:.1f}%'
+                else:
+                    return f'{x*100:.0f}%'
+            ax.xaxis.set_major_formatter(FuncFormatter(log_formatter))
             
             # Point labels removed to reduce clutter - values can be read from the plot
         else:
             ax.text(0.5, 0.5, 'No data available', 
                    ha='center', va='center', transform=ax.transAxes)
-        
-        ax.set_xlabel('Training Data Fraction (%)')
-        ax.set_ylabel('Pearson Correlation')
-        ax.set_title(test_label)
+            ax.set_xlabel('Training Data Fraction')
+            ax.set_ylabel('Pearson Correlation')
+            ax.set_title(test_label)
     
     plt.tight_layout()
     
