@@ -51,6 +51,10 @@ def extract_training_metrics(log_file: Path):
             val_loss_val = float(val_matches[i].group(1))
             val_pearson_val = float(val_matches[i].group(2))
             
+            # Filter out loss values above 50 (outliers that skew the plot)
+            if train_loss_val > 50 or val_loss_val > 50:
+                continue
+            
             epochs.append(epoch_num)
             train_loss.append(train_loss_val)
             val_loss.append(val_loss_val)
@@ -71,27 +75,46 @@ def plot_training_comparison(log_files_dict, output_file: Path):
     fig.suptitle('Training Curves Comparison: 4% vs 8% vs 16% Subsamples', 
                  fontsize=16, fontweight='bold')
     
-    # Colors for each fraction
-    colors = {
+    # Base colors for each fraction
+    base_colors = {
         '4%': '#2E86AB',
         '8%': '#A23B72',
         '16%': '#F18F01'
     }
     
+    # Helper function to adjust color brightness for different seeds
+    def adjust_color_brightness(hex_color, brightness_factor):
+        """Adjust color brightness by a factor (0.0 to 1.0)."""
+        import matplotlib.colors as mcolors
+        rgb = mcolors.hex2color(hex_color)
+        # Convert to HSV, adjust value, convert back
+        hsv = mcolors.rgb_to_hsv(rgb)
+        hsv[2] = max(0, min(1, hsv[2] * brightness_factor))
+        rgb = mcolors.hsv_to_rgb(hsv)
+        return mcolors.rgb2hex(rgb)
+    
     # Plot 1: Training Loss
     ax1 = axes[0]
     for fraction, logs in log_files_dict.items():
-        for log_file, seed, metrics in logs:
+        base_color = base_colors.get(fraction, '#808080')
+        # Sort logs by seed to ensure consistent color assignment
+        sorted_logs = sorted(logs, key=lambda x: int(x[1]) if x[1].isdigit() else 0)
+        for idx, (log_file, seed, metrics) in enumerate(sorted_logs):
             if metrics and len(metrics['epochs']) > 0:
                 # Check if this is the unfinished 16% run
                 is_unfinished = (fraction == "16%" and seed == "42")
                 linestyle = '--' if is_unfinished else '-'
                 label = f"{fraction} (seed {seed})" + (" [incomplete]" if is_unfinished else "")
                 fmt = 'o--' if is_unfinished else 'o-'
+                
+                # Use different shades: first seed gets full brightness, second gets darker
+                brightness = 1.0 if idx == 0 else 0.7
+                color = adjust_color_brightness(base_color, brightness)
+                
                 ax1.plot(metrics['epochs'], metrics['train_loss'], 
                         fmt, linewidth=2, markersize=4,
-                        label=label, color=colors.get(fraction, 'gray'),
-                        alpha=0.7)
+                        label=label, color=color,
+                        alpha=0.8)
     
     ax1.set_xlabel('Epoch', fontsize=12)
     ax1.set_ylabel('Training Loss', fontsize=12)
@@ -102,17 +125,24 @@ def plot_training_comparison(log_files_dict, output_file: Path):
     # Plot 2: Validation Loss
     ax2 = axes[1]
     for fraction, logs in log_files_dict.items():
-        for log_file, seed, metrics in logs:
+        base_color = base_colors.get(fraction, '#808080')
+        sorted_logs = sorted(logs, key=lambda x: int(x[1]) if x[1].isdigit() else 0)
+        for idx, (log_file, seed, metrics) in enumerate(sorted_logs):
             if metrics and len(metrics['epochs']) > 0:
                 # Check if this is the unfinished 16% run
                 is_unfinished = (fraction == "16%" and seed == "42")
                 linestyle = '--' if is_unfinished else '-'
                 label = f"{fraction} (seed {seed})" + (" [incomplete]" if is_unfinished else "")
                 fmt = 'o--' if is_unfinished else 'o-'
+                
+                # Use different shades: first seed gets full brightness, second gets darker
+                brightness = 1.0 if idx == 0 else 0.7
+                color = adjust_color_brightness(base_color, brightness)
+                
                 ax2.plot(metrics['epochs'], metrics['val_loss'], 
                         fmt, linewidth=2, markersize=4,
-                        label=label, color=colors.get(fraction, 'gray'),
-                        alpha=0.7)
+                        label=label, color=color,
+                        alpha=0.8)
     
     ax2.set_xlabel('Epoch', fontsize=12)
     ax2.set_ylabel('Validation Loss', fontsize=12)
@@ -123,17 +153,24 @@ def plot_training_comparison(log_files_dict, output_file: Path):
     # Plot 3: Validation Pearson R
     ax3 = axes[2]
     for fraction, logs in log_files_dict.items():
-        for log_file, seed, metrics in logs:
+        base_color = base_colors.get(fraction, '#808080')
+        sorted_logs = sorted(logs, key=lambda x: int(x[1]) if x[1].isdigit() else 0)
+        for idx, (log_file, seed, metrics) in enumerate(sorted_logs):
             if metrics and len(metrics['epochs']) > 0:
                 # Check if this is the unfinished 16% run
                 is_unfinished = (fraction == "16%" and seed == "42")
                 linestyle = '--' if is_unfinished else '-'
                 label = f"{fraction} (seed {seed})" + (" [incomplete]" if is_unfinished else "")
                 fmt = 'o--' if is_unfinished else 'o-'
+                
+                # Use different shades: first seed gets full brightness, second gets darker
+                brightness = 1.0 if idx == 0 else 0.7
+                color = adjust_color_brightness(base_color, brightness)
+                
                 ax3.plot(metrics['epochs'], metrics['val_pearson_r'], 
                         fmt, linewidth=2, markersize=4,
-                        label=label, color=colors.get(fraction, 'gray'),
-                        alpha=0.7)
+                        label=label, color=color,
+                        alpha=0.8)
     
     ax3.set_xlabel('Epoch', fontsize=12)
     ax3.set_ylabel('Validation Pearson R', fontsize=12)
