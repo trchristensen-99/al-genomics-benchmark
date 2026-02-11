@@ -134,12 +134,13 @@ class K562Dataset(SequenceDataset):
         self.sequences = self._standardize_to_200bp(self.sequences)
         
         # Apply subset size if specified (for downsampling experiments)
+        # Use truly random sampling without replacement
         if self.subset_size is not None and self.subset_size < len(self.sequences):
-            np.random.seed(42)  # For reproducibility
+            # No seed set - use current random state for maximum randomness
             indices = np.random.choice(len(self.sequences), size=self.subset_size, replace=False)
             self.sequences = self.sequences[indices]
             self.labels = self.labels[indices]
-            logger.info(f"Downsampled to {self.subset_size:,} sequences")
+            logger.info(f"Downsampled to {self.subset_size:,} sequences (random sampling, no replacement)")
         
         self.sequence_length = self.SEQUENCE_LENGTH
         
@@ -285,8 +286,7 @@ class K562Dataset(SequenceDataset):
         # We'll use all of train_pool_indices as the train split
         n_train = len(train_pool_indices)  # Use full train pool, no cap
         
-        # Randomly shuffle and split
-        np.random.seed(42)
+        # Randomly shuffle and split (no seed - use current random state for maximum randomness)
         shuffle_idx = np.random.permutation(len(train_pool_indices))
         
         train_shuffle = shuffle_idx[:n_train]

@@ -19,6 +19,7 @@ from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
 
 from .training import compute_metrics, evaluate
+from .loss_utils import YeastKLLoss
 
 
 def train_epoch_optimized(
@@ -68,15 +69,29 @@ def train_epoch_optimized(
         # Forward and backward pass with optional mixed precision
         if use_amp and scaler is not None:
             with autocast():
-                predictions = model(sequences)
-                loss = criterion(predictions, targets)
+                # For yeast: get logits and use KL divergence
+                # For K562: get predictions and use MSE
+                if hasattr(model, 'task_mode') and model.task_mode == 'yeast':
+                    logits = model.get_logits(sequences)
+                    predictions = model(sequences)  # Weighted average for metrics
+                    loss = criterion(logits, targets)
+                else:
+                    predictions = model(sequences)
+                    loss = criterion(predictions, targets)
             
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
         else:
-            predictions = model(sequences)
-            loss = criterion(predictions, targets)
+            # For yeast: get logits and use KL divergence
+            # For K562: get predictions and use MSE
+            if hasattr(model, 'task_mode') and model.task_mode == 'yeast':
+                logits = model.get_logits(sequences)
+                predictions = model(sequences)  # Weighted average for metrics
+                loss = criterion(logits, targets)
+            else:
+                predictions = model(sequences)
+                loss = criterion(predictions, targets)
             loss.backward()
             optimizer.step()
         

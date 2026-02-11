@@ -13,6 +13,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 import yaml
 import json
 import time
@@ -35,15 +36,25 @@ from models.training import (
 from models.training_optimized import train_model_optimized
 
 
-def set_seed(seed: int):
-    """Set random seeds for reproducibility."""
+def set_seed(seed: Optional[int] = None):
+    """
+    Set random seeds for reproducibility (optional).
+    
+    If seed is None, uses truly random seed from system entropy.
+    This ensures maximum randomization when reproducibility is not needed.
+    """
+    if seed is None:
+        # Use system entropy for truly random seed
+        import os
+        seed = int.from_bytes(os.urandom(4), byteorder='big') % (2**31)
+    
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-        if seed is not None:
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
+        # Keep deterministic=False for maximum randomness
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
 
 
 def load_config(config_path: str) -> dict:
@@ -63,9 +74,17 @@ def create_dataset(dataset_name: str, data_path: str, split: str):
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
 
-def create_subset_indices(dataset_size: int, fraction: float, seed: int) -> np.ndarray:
-    """Create random subset indices."""
-    np.random.seed(seed)
+def create_subset_indices(dataset_size: int, fraction: float, seed: Optional[int] = None) -> np.ndarray:
+    """
+    Create random subset indices with maximum randomness.
+    
+    Uses system entropy if seed is None to ensure truly random sampling.
+    """
+    if seed is not None:
+        # Use provided seed (for reproducibility if needed)
+        np.random.seed(seed)
+    # Otherwise, use current random state (which should be randomized)
+    
     num_samples = int(dataset_size * fraction)
     indices = np.random.choice(dataset_size, size=num_samples, replace=False)
     return indices
@@ -95,9 +114,10 @@ def run_experiment(
         config['experiment']['random_seed'] = seed_override
         print(f"Seed override: {seed_override}")
     
-    # Set random seed
-    seed = config['experiment']['random_seed']
-    set_seed(seed)
+    # Use truly random seed (None = use system entropy)
+    # This ensures maximum randomization for each run
+    seed = None  # Disable fixed seeds for maximum randomness
+    set_seed(seed)  # Will generate random seed from system entropy
     
     # Override dataset if specified
     if dataset_override is not None:
@@ -111,12 +131,13 @@ def run_experiment(
     
     dataset_name = config['data']['dataset_name']
     print(f"Dataset: {dataset_name}")
-    print(f"Random seed: {seed}")
+    print(f"Random seed: {seed} (truly random from system entropy)")
     print(f"Subset fractions: {config['data']['subset_fractions']}")
     
     # Setup directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_name = f"{config['experiment']['name']}_seed{seed}_{timestamp}"
+    # Use timestamp-based name since seed is random
+    experiment_name = f"{config['experiment']['name']}_random_{timestamp}"
     
     # New structure: checkpoints/{dataset}/fraction_{fraction}/{experiment_name}/
     base_checkpoint_dir = Path(config['output']['checkpoint_dir']) / dataset_name
@@ -185,11 +206,12 @@ def run_experiment(
         print(f"TRAINING WITH {fraction*100:.1f}% OF DATA")
         print("="*80)
         
-        # Create subset
+        # Create subset with truly random sampling
+        # Each fraction gets independent random sampling
         subset_indices = create_subset_indices(
             len(train_dataset_full),
             fraction,
-            seed=seed
+            seed=None  # Use truly random seed for each fraction
         )
         train_subset = Subset(train_dataset_full, subset_indices)
         
@@ -204,10 +226,12 @@ def run_experiment(
             pin_memory=config['data']['pin_memory']
         )
         
-        # Create model
+        # Create model with task-specific configuration
+        task_mode = 'yeast' if dataset_name.lower() == 'yeast' else 'k562'
         model = create_dream_rnn(
             input_channels=train_dataset_full.get_num_channels(),
             sequence_length=train_dataset_full.get_sequence_length(),
+            task_mode=task_mode,
             hidden_dim=config['model']['hidden_dim'],
             cnn_filters=config['model']['cnn_filters'],
             dropout_cnn=config['model']['dropout_cnn'],
@@ -216,6 +240,7 @@ def run_experiment(
         model = model.to(device)
         
         print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+        print(f"Task mode: {task_mode}")
         
         # Create optimizer and scheduler
         optimizer, scheduler = create_optimizer_and_scheduler(
@@ -228,8 +253,16 @@ def run_experiment(
             pct_start=config['training']['pct_start']
         )
         
-        # Create loss function
-        criterion = nn.MSELoss()
+        # Create loss function based on task mode
+        # Yeast: KL divergence for 18-bin classification
+        # K562: MSE for direct regression
+        from models.loss_utils import YeastKLLoss
+        if task_mode == 'yeast':
+            criterion = YeastKLLoss(reduction='batchmean')  # KL divergence for bin probabilities
+            print("Using KL divergence loss for yeast 18-bin classification")
+        else:
+            criterion = nn.MSELoss()
+            print("Using MSE loss for K562 direct regression")
         
         # Create checkpoint directory for this subset
         # Structure: checkpoints/{dataset}/fraction_{fraction}/{experiment_name}/

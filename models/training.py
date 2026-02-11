@@ -157,6 +157,9 @@ def evaluate(
     all_predictions = []
     all_targets = []
     
+    # Check if this is yeast mode (KL divergence loss)
+    is_yeast_mode = hasattr(model, 'task_mode') and model.task_mode == 'yeast'
+    
     with torch.no_grad():
         for sequences, targets in tqdm(dataloader, desc="Evaluating", leave=False):
             sequences = sequences.to(device)
@@ -169,7 +172,14 @@ def evaluate(
                 predictions = model(sequences)
             
             # Compute loss
-            loss = criterion(predictions, targets)
+            # For yeast: need logits for KL divergence
+            # For K562: use predictions directly for MSE
+            if is_yeast_mode:
+                # Get logits for KL divergence loss
+                logits = model.get_logits(sequences)
+                loss = criterion(logits, targets)
+            else:
+                loss = criterion(predictions, targets)
             
             # Track metrics
             total_loss += loss.item()

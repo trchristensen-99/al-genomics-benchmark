@@ -29,30 +29,45 @@ class DREAMRNN(SequenceModel):
       followed by another dual CNN block (same as first layer).
     - Final block: 1D conv (256 filters) → global average pooling → linear layer.
     
+    Task-specific final layers:
+    - Yeast: 18-bin SoftMax classification → weighted average to expression (KL divergence loss)
+    - K562: Direct regression output (MSE loss)
+    
     The model uses dropout for regularization and supports sequences with
     different numbers of input channels (4 for ACGT, 5 for ACGT+singleton).
     
     Args:
         input_channels: Number of input channels (4 for yeast ACGT, 5 for K562 ACGT+singleton)
         sequence_length: Length of input sequences (80 for yeast, 230 for K562)
-        output_dim: Output dimension (default: 1 for regression)
+        output_dim: Output dimension (1 for K562 regression, 18 for yeast bins, or auto-detect from task_mode)
         hidden_dim: LSTM hidden dimension per direction (default: 320)
         cnn_filters: Number of filters PER CNN in dual blocks (default: 160, so 320 total after concat)
         dropout_cnn: Dropout rate after CNN layers (default: 0.2 in original, 0.1 for MC dropout)
         dropout_lstm: Dropout rate after LSTM (default: 0.5 in original, 0.1 for MC dropout)
+        task_mode: 'yeast' for 18-bin SoftMax classification, 'k562' for direct regression (default: 'k562')
     """
     
     def __init__(
         self,
         input_channels: int,
         sequence_length: int,
-        output_dim: int = 1,
+        output_dim: Optional[int] = None,
         hidden_dim: int = 320,
         cnn_filters: int = 160,  # Original Prix Fixe: 160 per CNN → 320 total after concat
         dropout_cnn: float = 0.2,
-        dropout_lstm: float = 0.5
+        dropout_lstm: float = 0.5,
+        task_mode: str = 'k562'  # 'yeast' or 'k562'
     ):
+        # Auto-detect output_dim from task_mode if not specified
+        if output_dim is None:
+            if task_mode == 'yeast':
+                output_dim = 18  # 18 bins for yeast
+            else:
+                output_dim = 1  # Direct regression for K562
+        
         super().__init__(input_channels, sequence_length, output_dim)
+        
+        self.task_mode = task_mode
         
         self.hidden_dim = hidden_dim
         self.cnn_filters = cnn_filters
@@ -126,7 +141,22 @@ class DREAMRNN(SequenceModel):
         
         # Global average pooling will be done manually
         # Linear layer to output
+        # For yeast: output 18 logits (before SoftMax)
+        # For K562: output 1 value (direct regression)
         self.fc = nn.Linear(256, output_dim)
+        
+        # For yeast mode: bin centers for weighted average conversion
+        # Expression values range from 0-17, so bins are [0, 1, 2, ..., 17]
+        # Bin centers are at integer values (0.0, 1.0, 2.0, ..., 17.0)
+        if task_mode == 'yeast':
+            # Register bin centers as buffer (not a parameter, but part of model state)
+            bin_centers = torch.arange(18, dtype=torch.float32)  # [0.0, 1.0, ..., 17.0]
+            self.register_buffer('bin_centers', bin_centers)
+            # SoftMax for converting logits to probabilities
+            self.softmax = nn.Softmax(dim=-1)
+        else:
+            self.bin_centers = None
+            self.softmax = None
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -176,14 +206,74 @@ class DREAMRNN(SequenceModel):
         pooled = torch.mean(conv3_out, dim=2)  # (batch, 256)
         
         # Linear layer to output
-        output = self.fc(pooled)  # (batch, output_dim)
+        logits = self.fc(pooled)  # (batch, output_dim)
         
-        # For regression, return raw output (no activation)
-        # If output_dim == 1, squeeze to (batch,)
-        if self.output_dim == 1:
-            output = output.squeeze(1)
+        # Task-specific output processing
+        if self.task_mode == 'yeast':
+            # Yeast: Convert 18-bin logits to expression via SoftMax + weighted average
+            # logits shape: (batch, 18)
+            bin_probs = self.softmax(logits)  # (batch, 18) - probabilities for each bin
+            # Weighted average: expression = Σ(bin_center_i × prob_i)
+            output = torch.sum(bin_probs * self.bin_centers.unsqueeze(0), dim=1)  # (batch,)
+        else:
+            # K562: Direct regression output
+            # If output_dim == 1, squeeze to (batch,)
+            if self.output_dim == 1:
+                output = logits.squeeze(1)
+            else:
+                output = logits
         
         return output
+    
+    def get_logits(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Get raw logits before SoftMax (for yeast) or final output (for K562).
+        Useful for computing KL divergence loss for yeast.
+        
+        Args:
+            x: Input tensor of shape (batch_size, input_channels, sequence_length)
+            
+        Returns:
+            Logits tensor of shape (batch_size, 18) for yeast or (batch_size, 1) for K562
+        """
+        # Forward pass up to logits
+        batch_size = x.size(0)
+        conv1_short_out = self.conv1_short(x)
+        conv1_long_out = self.conv1_long(x)
+        conv1_out = torch.cat([conv1_short_out, conv1_long_out], dim=1)
+        conv1_out = self.relu1(conv1_out)
+        conv1_out = self.dropout1(conv1_out)
+        lstm_in = conv1_out.permute(0, 2, 1)
+        lstm_out, _ = self.lstm(lstm_in)
+        lstm_out = lstm_out.permute(0, 2, 1)
+        conv2_short_out = self.conv2_short(lstm_out)
+        conv2_long_out = self.conv2_long(lstm_out)
+        conv2_out = torch.cat([conv2_short_out, conv2_long_out], dim=1)
+        conv2_out = self.relu2(conv2_out)
+        conv2_out = self.dropout2(conv2_out)
+        conv3_out = self.conv3(conv2_out)
+        conv3_out = self.relu3(conv3_out)
+        pooled = torch.mean(conv3_out, dim=2)
+        logits = self.fc(pooled)
+        
+        return logits
+    
+    def get_bin_probabilities(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Get bin probabilities for yeast mode (before weighted average).
+        Only valid when task_mode == 'yeast'.
+        
+        Args:
+            x: Input tensor of shape (batch_size, input_channels, sequence_length)
+            
+        Returns:
+            Bin probabilities tensor of shape (batch_size, 18)
+        """
+        if self.task_mode != 'yeast':
+            raise ValueError("get_bin_probabilities() only available for yeast task_mode")
+        
+        logits = self.get_logits(x)
+        return self.softmax(logits)
     
     def get_model_info(self) -> Dict[str, Any]:
         """Get model architecture information."""
@@ -193,13 +283,17 @@ class DREAMRNN(SequenceModel):
             "cnn_filters": self.cnn_filters,
             "dropout_cnn": self.dropout_cnn,
             "dropout_lstm": self.dropout_lstm,
+            "task_mode": self.task_mode,
         })
+        if self.task_mode == 'yeast':
+            info["bin_centers"] = self.bin_centers.cpu().numpy().tolist()
         return info
 
 
 def create_dream_rnn(
     input_channels: int,
     sequence_length: int,
+    task_mode: str = 'k562',
     **kwargs
 ) -> DREAMRNN:
     """
@@ -208,18 +302,20 @@ def create_dream_rnn(
     Args:
         input_channels: Number of input channels (4 or 5)
         sequence_length: Length of input sequences
+        task_mode: 'yeast' for 18-bin SoftMax classification, 'k562' for direct regression
         **kwargs: Additional arguments passed to DREAMRNN constructor
         
     Returns:
         Initialized DREAMRNN model
         
     Example:
-        >>> model = create_dream_rnn(input_channels=5, sequence_length=230)
+        >>> model = create_dream_rnn(input_channels=5, sequence_length=230, task_mode='k562')
         >>> print(model.get_model_info())
     """
     model = DREAMRNN(
         input_channels=input_channels,
         sequence_length=sequence_length,
+        task_mode=task_mode,
         **kwargs
     )
     

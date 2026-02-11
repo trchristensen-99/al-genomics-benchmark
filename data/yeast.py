@@ -85,12 +85,12 @@ class YeastDataset(SequenceDataset):
             # For active learning: split into train (first 100K) and pool (rest)
             if self.split == 'pool':
                 # Pool split only used for active learning
-                np.random.seed(42)
+                # Use truly random permutation
                 indices = np.random.permutation(len(df))
                 indices = indices[100000:]
                 df = df.iloc[indices].reset_index(drop=True)
                 is_singleton = is_singleton[indices]
-                print(f"Using remaining {len(indices):,} sequences for pool")
+                print(f"Using remaining {len(indices):,} sequences for pool (random permutation)")
             else:
                 # For 'train' split: use full dataset (6.7M sequences)
                 # Downsampling will be applied later if subset_size is specified
@@ -102,11 +102,11 @@ class YeastDataset(SequenceDataset):
             df = pd.read_csv(file_path, sep='\t', header=None, names=['sequence', 'expression'])
             
             # Use random 20K subset for validation (per paper)
-            np.random.seed(42)
+            # Use truly random sampling without replacement
             if len(df) > 20000:
                 indices = np.random.choice(len(df), size=20000, replace=False)
                 df = df.iloc[indices].reset_index(drop=True)
-                print(f"Using random 20,000 subset of validation set")
+                print(f"Using random 20,000 subset of validation set (random sampling, no replacement)")
             
             is_singleton = (df['expression'] % 1 == 0).values.astype(np.float32)
             
@@ -127,12 +127,13 @@ class YeastDataset(SequenceDataset):
         self.sequences = self._add_plasmid_context(self.sequences)
         
         # Apply subset size if specified (for downsampling experiments)
+        # Use truly random sampling without replacement
         if self.subset_size is not None and self.subset_size < len(self.sequences):
             indices = np.random.choice(len(self.sequences), size=self.subset_size, replace=False)
             self.sequences = self.sequences[indices]
             self.labels = self.labels[indices]
             self.is_singleton = self.is_singleton[indices]
-            print(f"Downsampled to {self.subset_size} sequences")
+            print(f"Downsampled to {self.subset_size} sequences (random sampling, no replacement)")
         
         self.sequence_length = self.SEQUENCE_LENGTH
         
